@@ -14,5 +14,20 @@ cmake ..
 make -j8 fijit-sys
 
 # testing
-./fijit-sys ../data/sanity_check.onnx ../data/resnet50_input.onnx 0
+./fijit-sys --model ../data/sanity_check.onnx --input ../data/resnet50_input.onnx --max-block 20
+```
+
+Usage:
+```
+./fijit-sys -h
+FIJIT Inference Engine
+Usage:
+  fijit-sys [OPTION...]
+
+  -m, --model arg       Path to the model ONNX file
+  -i, --input arg       Path to the input ONNX file
+      --max-block arg   Max block for TVM ops
+      --input-name arg  Override input tensor name
+  -h, --help            Print help
+
 ```

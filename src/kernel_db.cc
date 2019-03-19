@@ -93,9 +93,8 @@ vector<KERNEL_ARG> KernelDB::get_kernel_args(string &op) {
   return k_args;
 }
 
-
-string KernelDB::get_kernel_name(string & op) {
+string KernelDB::get_kernel_name(string &op) {
   auto &c = rdx.commandSync<string>({"HGET", op, "kernel_name"});
   CHECK_OK(c);
   return c.reply();
-  }
+}

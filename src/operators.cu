@@ -221,8 +221,7 @@ unique_ptr<TVMOperator> LogicalOperator::realize_tvm(int max_blocks) {
   auto op = make_unique<TVMOperator>(
       db.get_fatbin(redis_key), db.get_block_dim(redis_key),
       db.get_grid_dim(redis_key), db.get_kernel_args(redis_key),
-      db.get_kernel_name(redis_key)
-      );
+      db.get_kernel_name(redis_key));
   return op;
 }
 

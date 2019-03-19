@@ -24,16 +24,57 @@
 #include "rapidjson/stringbuffer.h"
 #include "rapidjson/writer.h"
 
+#include "cxxopts/cxxopts.hpp"
+
 using namespace rapidjson;
 
 using namespace std;
 using namespace onnx;
 using namespace google::protobuf::io;
 
+void parse_model(ModelProto &model, const char *model_path) {
+  int fd = open(model_path, O_RDONLY);
+  ZeroCopyInputStream *raw_input = new FileInputStream(fd);
+  CodedInputStream *coded_input = new CodedInputStream(raw_input);
+  coded_input->SetTotalBytesLimit(671088640, 167108860);
+
+  model.ParseFromCodedStream(coded_input);
+
+  close(fd);
+}
+
+void parse_input(TensorProto &input, string input_path) {
+  fstream f(input_path, ios::in | ios::binary);
+  input.ParseFromIstream(&f);
+}
+
 int main(int argc, char *argv[]) {
   GOOGLE_PROTOBUF_VERIFY_VERSION;
 
-  assert(argc == 4);
+  cxxopts::Options options("fijit-sys", "FIJIT Inference Engine");
+  options.positional_help("[optional args]").show_positional_help();
+  options.add_options()("m,model", "Path to the model ONNX file",
+                        cxxopts::value<string>())(
+      "i,input", "Path to the input ONNX file", cxxopts::value<string>())(
+      "max-block", "Max block for TVM ops",
+      cxxopts::value<int>())("input-name", "Override input tensor name",
+                             cxxopts::value<string>())("h, help", "Print help");
+  auto result = options.parse(argc, argv);
+
+  if (result.count("help")) {
+    std::cout << options.help({"", "Group"}) << std::endl;
+    exit(0);
+  }
+
+  const char *model_path = result["model"].as<string>().c_str();
+  string input_path = result["input"].as<string>();
+  int max_block = result["max-block"].as<int>();
+
+  ModelProto model;
+  parse_model(model, model_path);
+
+  TensorProto input;
+  parse_input(input, input_path);
 
   cuda_init();
   cudnnHandle_t handle;
@@ -41,36 +82,14 @@ int main(int argc, char *argv[]) {
   cublasHandle_t cublasHandle;
   cublasCreate(&cublasHandle);
 
-  ModelProto model;
-  {
-    int fd = open(argv[1], O_RDONLY);
-    ZeroCopyInputStream *raw_input = new FileInputStream(fd);
-    CodedInputStream *coded_input = new CodedInputStream(raw_input);
-    coded_input->SetTotalBytesLimit(671088640, 167108860);
-
-    model.ParseFromCodedStream(coded_input);
-
-    close(fd);
-  }
-
-  TensorProto input;
-  {
-    fstream f(argv[2], ios::in | ios::binary);
-    input.ParseFromIstream(&f);
-  }
-
-  string input_name = argv[3];
-
   // Step 1, malloc all data
   shared_ptr<MemoryManager> mm = make_shared<MemoryManager>();
 
   shared_ptr<unordered_map<string, ValueInfoProto>> shape_map =
       traverse_shapes(model.graph());
 
-  {
-    for (auto name_to_val : *shape_map) {
-      mm->register_placeholder(name_to_val.second);
-    }
+  for (auto name_to_val : *shape_map) {
+    mm->register_placeholder(name_to_val.second);
   }
 
   // Step 2, fill in the placeholder
@@ -78,22 +97,25 @@ int main(int argc, char *argv[]) {
     mm->register_tensor(tensor);
   }
 
-  mm->register_tensor(input, input_name);
+  if (result.count("input-name")) {
+    mm->register_tensor(input, result["input-name"].as<string>());
+  } else {
+    mm->register_tensor(input);
+  }
 
-  // Step 3, realize the operators
+  // Step 3, construct logical DAG
   vector<LogicalOperator> ops;
   for (auto n : model.graph().node()) {
     ops.emplace_back(n, shape_map);
   }
 
-  int max_block = 20;
+  // Step 4, realize operators
   vector<unique_ptr<PhysicalOperator>> physical_ops;
-
   for (auto o : ops) {
     physical_ops.push_back(o.realize(max_block, &handle, &cublasHandle));
   }
 
-  // Step 4, connect the graph
+  // Step 5, connect the graph
   for (int i = 0; i < model.graph().node().size(); ++i) {
     auto n = model.graph().node().Get(i);
 
@@ -112,6 +134,7 @@ int main(int argc, char *argv[]) {
                                   mm->get_device_ptr(n.output().Get(0)));
   }
 
+  // Step 6, start dispatch
   cudaStream_t s;
   cudaStreamCreate(&s);
   cudaEvent_t start_of_world;
@@ -128,13 +151,7 @@ int main(int argc, char *argv[]) {
       cudaEventSynchronize(events_collection[events_collection.size() - 1][1]));
   CHECK_CUDA(cudaDeviceSynchronize());
 
-  //  for (auto out : model.graph().output()) {
-  //    float *result = mm->get_value(out.name());
-  //    for (int i = 0; i < 4; ++i) {
-  //      cout << result[i] << " ";
-  //    }
-  //    cout << endl;
-  //  }
+  // Step 7: Printout chrome://tracing data
 
   //  [
   //  { "pid":1, "tid":1, "ts":87705, "dur":956189, "ph":"X", "name":"Jambase",
@@ -160,7 +177,7 @@ int main(int argc, char *argv[]) {
     cudaEventElapsedTime(&start_time, start_of_world, start);
 
     string op_name = physical_ops[k]->get_name();
-    string formatted_op_name = fmt::format("{}-{:x}", op_name, k);
+    string formatted_op_name = fmt::format("{}-{}", op_name, k);
 
     Value name;
     name.SetString(formatted_op_name.c_str(), formatted_op_name.size(),
@@ -180,6 +197,12 @@ int main(int argc, char *argv[]) {
   Writer<StringBuffer> writer(buffer);
   document.Accept(writer);
 
-  // Output {"project":"rapidjson","stars":11}
   std::cout << buffer.GetString() << std::endl;
+
+  // Step 8: Printout total latency
+
+  float total_time;
+  cudaEventElapsedTime(&total_time, start_of_world,
+                       events_collection[events_collection.size() - 1][1]);
+  std::cout << fmt::format("Total time: {} ms", total_time);
 }

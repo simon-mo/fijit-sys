@@ -18,8 +18,7 @@
     cudaError_t status = (expression);                                         \
     if (status != cudaSuccess) {                                               \
       const char *err_str = cudaGetErrorString(status);                        \
-      std::cerr << "Error on line " << __LINE__ << ": " << err_str << "\n"     \
-                << __FILE__ << ":" << STR(expression) << std::endl;            \
+      PRINT_ERR(expression, err_str)                                           \
       std::exit(EXIT_FAILURE);                                                 \
     }                                                                          \
   }
@@ -30,8 +29,7 @@
     if (status != CUDA_SUCCESS) {                                              \
       const char *err_str;                                                     \
       cuGetErrorString(status, &err_str);                                      \
-      std::cerr << "Error on line " << __LINE__ << ": " << err_str << "\n"     \
-                << __FILE__ << ":" << STR(expression) << std::endl;            \
+      PRINT_ERR(expression, err_str)                                           \
       std::exit(EXIT_FAILURE);                                                 \
     }                                                                          \
   }

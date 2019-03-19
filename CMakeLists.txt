@@ -11,6 +11,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS "ON")
 
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 include_directories(${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party)
 
 include(cmake/cuda.cmake)
 add_subdirectory(third_party/redox EXCLUDE_FROM_ALL)
@@ -23,6 +24,7 @@ add_executable(
         ${PROJECT_NAME}
         src/main.cu
         src/abstract_operators.h
+        third_party/cxxopts/cxxopts.hpp
 )
 
 target_link_libraries(${PROJECT_NAME}
