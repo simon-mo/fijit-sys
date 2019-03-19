@@ -14,5 +14,5 @@ cmake ..
 make -j8 fijit-sys
 
 # testing
-./fijit-sys ../data/resnet50.onnx ../data/resnet50_input.onnx 0
+./fijit-sys ../data/sanity_check.onnx ../data/resnet50_input.onnx 0
 ```
