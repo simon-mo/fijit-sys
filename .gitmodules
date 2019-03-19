@@ -1,0 +1,9 @@
+[submodule "third_party/rapidjson"]
+	path = third_party/rapidjson
+	url = https://github.com/dcrankshaw/rapidjson.git
+[submodule "third_party/redox"]
+	path = third_party/redox
+	url = http://github.com/dcrankshaw/redox.git
+[submodule "third_party/fmt"]
+	path = third_party/fmt
+	url = https://github.com/fmtlib/fmt.git
