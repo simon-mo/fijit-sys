@@ -27,6 +27,8 @@ public:
 
   vector<KERNEL_ARG> get_kernel_args(string &);
 
+  string get_kernel_name(string &);
+
 private:
   redox::Redox rdx;
 };

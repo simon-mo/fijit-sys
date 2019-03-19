@@ -24,7 +24,7 @@ using namespace std;
 
 class TVMOperator : public PhysicalOperator {
 public:
-  TVMOperator(string, k_dim3, k_dim3, vector<KERNEL_ARG>);
+  TVMOperator(string, k_dim3, k_dim3, vector<KERNEL_ARG>, string);
 
   void set_argument(KERNEL_ARG, CUdeviceptr);
 

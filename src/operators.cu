@@ -35,10 +35,10 @@ class NoSuchOpException : public exception {
 };
 
 TVMOperator::TVMOperator(string binary, k_dim3 k_block, k_dim3 k_grid,
-                         vector<KERNEL_ARG> k_args) {
+                         vector<KERNEL_ARG> k_args, string kernel_name) {
   CUmodule mod;
   CHECK_CUDEVICE(cuModuleLoadFatBinary(&mod, binary.c_str()));
-  CHECK_CUDEVICE(cuModuleGetFunction(&func, mod, "default_function_kernel0"));
+  CHECK_CUDEVICE(cuModuleGetFunction(&func, mod, kernel_name.c_str()));
 
   {
     int x, y, z;
@@ -220,7 +220,9 @@ unique_ptr<TVMOperator> LogicalOperator::realize_tvm(int max_blocks) {
 
   auto op = make_unique<TVMOperator>(
       db.get_fatbin(redis_key), db.get_block_dim(redis_key),
-      db.get_grid_dim(redis_key), db.get_kernel_args(redis_key));
+      db.get_grid_dim(redis_key), db.get_kernel_args(redis_key),
+      db.get_kernel_name(redis_key)
+      );
   return op;
 }
 
