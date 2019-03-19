@@ -24,7 +24,6 @@
 #include "rapidjson/stringbuffer.h"
 #include "rapidjson/writer.h"
 
-
 using namespace rapidjson;
 
 using namespace std;
@@ -113,7 +112,6 @@ int main(int argc, char *argv[]) {
                                   mm->get_device_ptr(n.output().Get(0)));
   }
 
-
   cudaStream_t s;
   cudaStreamCreate(&s);
   cudaEvent_t start_of_world;
@@ -127,33 +125,32 @@ int main(int argc, char *argv[]) {
   }
 
   CHECK_CUDA(
-      cudaEventSynchronize(
-          events_collection[events_collection.size() - 1][1]
-          ));
+      cudaEventSynchronize(events_collection[events_collection.size() - 1][1]));
   CHECK_CUDA(cudaDeviceSynchronize());
 
+  //  for (auto out : model.graph().output()) {
+  //    float *result = mm->get_value(out.name());
+  //    for (int i = 0; i < 4; ++i) {
+  //      cout << result[i] << " ";
+  //    }
+  //    cout << endl;
+  //  }
 
-//  for (auto out : model.graph().output()) {
-//    float *result = mm->get_value(out.name());
-//    for (int i = 0; i < 4; ++i) {
-//      cout << result[i] << " ";
-//    }
-//    cout << endl;
-//  }
-
-//  [
-//  { "pid":1, "tid":1, "ts":87705, "dur":956189, "ph":"X", "name":"Jambase", "args":{ "ms":956.2 } },
-//  { "pid":1, "tid":1, "ts":128154, "dur":75867, "ph":"X", "name":"SyncTargets", "args":{ "ms":75.9 } },
-//  { "pid":1, "tid":1, "ts":546867, "dur":121564, "ph":"X", "name":"DoThings", "args":{ "ms":121.6 } }
-//  ]
+  //  [
+  //  { "pid":1, "tid":1, "ts":87705, "dur":956189, "ph":"X", "name":"Jambase",
+  //  "args":{ "ms":956.2 } },
+  //  { "pid":1, "tid":1, "ts":128154, "dur":75867, "ph":"X",
+  //  "name":"SyncTargets", "args":{ "ms":75.9 } },
+  //  { "pid":1, "tid":1, "ts":546867, "dur":121564, "ph":"X",
+  //  "name":"DoThings", "args":{ "ms":121.6 } }
+  //  ]
 
   Document document;
-  Document::AllocatorType& allocator = document.GetAllocator();
+  Document::AllocatorType &allocator = document.GetAllocator();
 
   document.SetArray();
 
   for (int k = 0; k < physical_ops.size(); ++k) {
-
 
     float duration, start_time;
     cudaEvent_t start = events_collection[k][0];
@@ -165,9 +162,9 @@ int main(int argc, char *argv[]) {
     string op_name = physical_ops[k]->get_name();
     string formatted_op_name = fmt::format("{}-{:x}", op_name, k);
 
-
     Value name;
-    name.SetString(formatted_op_name.c_str(), formatted_op_name.size(), allocator);
+    name.SetString(formatted_op_name.c_str(), formatted_op_name.size(),
+                   allocator);
 
     Value item(kObjectType);
     item.AddMember("pid", Value(1), allocator);
@@ -177,14 +174,12 @@ int main(int argc, char *argv[]) {
     item.AddMember("ph", Value("X"), allocator);
     item.AddMember("name", name, allocator);
     document.PushBack(item.Move(), allocator);
-
-
   }
 
   StringBuffer buffer;
   Writer<StringBuffer> writer(buffer);
   document.Accept(writer);
 
-// Output {"project":"rapidjson","stars":11}
+  // Output {"project":"rapidjson","stars":11}
   std::cout << buffer.GetString() << std::endl;
 }

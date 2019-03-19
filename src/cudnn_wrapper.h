@@ -27,7 +27,7 @@ public:
   std::vector<cudaEvent_t> dispatch(cudaStream_t) override;
   void set_argument(KERNEL_ARG, CUdeviceptr) override;
 
-  string get_name() { return "CudnnPooling";};
+  string get_name() { return "CudnnPooling"; };
 
 private:
   cudnnHandle_t *handle;
@@ -44,7 +44,8 @@ public:
   std::vector<cudaEvent_t> dispatch(cudaStream_t) override;
   void set_argument(KERNEL_ARG, CUdeviceptr) override;
 
-  string get_name() { return "CudnnAdd";};
+  string get_name() { return "CudnnAdd"; };
+
 private:
   cudnnHandle_t *handle;
   CUdeviceptr input, output, data;
@@ -59,7 +60,7 @@ public:
   std::vector<cudaEvent_t> dispatch(cudaStream_t) override;
   void set_argument(KERNEL_ARG, CUdeviceptr) override;
 
-  string get_name() { return "CudnnRelu";};
+  string get_name() { return "CudnnRelu"; };
 
 private:
   cudnnHandle_t *handle;
@@ -76,7 +77,7 @@ public:
   vector<cudaEvent_t> dispatch(cudaStream_t) override;
   void set_argument(KERNEL_ARG, CUdeviceptr) override;
 
-  string get_name() { return "CudnnBatchNorm";};
+  string get_name() { return "CudnnBatchNorm"; };
 
 private:
   cudnnHandle_t *handle;
@@ -93,7 +94,7 @@ public:
   std::vector<cudaEvent_t> dispatch(cudaStream_t) override;
   void set_argument(KERNEL_ARG, CUdeviceptr) override;
 
-  string get_name() { return "CudnnSoftMax";};
+  string get_name() { return "CudnnSoftMax"; };
 
 private:
   cudnnHandle_t *handle;
@@ -113,7 +114,7 @@ public:
   std::vector<cudaEvent_t> dispatch(cudaStream_t) override;
   void set_argument(KERNEL_ARG, CUdeviceptr) override;
 
-  string get_name() { return "CudnnConv";};
+  string get_name() { return "CudnnConv"; };
 
 private:
   cudnnHandle_t *handle;

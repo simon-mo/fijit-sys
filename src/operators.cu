@@ -28,13 +28,11 @@ unordered_set<string> AllowedOps({"Conv", "AveragePool", "MaxPool", "Add",
                                   "Softmax", "Gemm", "Reshape",
                                   "GlobalAveragePool", "Flatten"});
 
-class NoSuchOpException: public exception {
-  virtual const char* what() const noexcept
-  {
+class NoSuchOpException : public exception {
+  virtual const char *what() const noexcept {
     return fmt::format("Can't find this operation").c_str();
   }
 };
-
 
 TVMOperator::TVMOperator(string binary, k_dim3 k_block, k_dim3 k_grid,
                          vector<KERNEL_ARG> k_args) {
@@ -216,7 +214,6 @@ unique_ptr<TVMOperator> LogicalOperator::realize_tvm(int max_blocks) {
       python_tuple_fmt_4(kernel_tensor), python_tuple_fmt_2(strides),
       python_tuple_fmt_2(pads), python_tuple_fmt_2(dilations), max_blocks);
 
-
   if (!db.exists(redis_key)) {
     throw NoSuchOpException();
   }
@@ -281,7 +278,7 @@ LogicalOperator::realize(int max_blocks, cudnnHandle_t *handle,
   if (type == "Conv") {
     try {
       return realize_tvm(max_blocks);
-    } catch (NoSuchOpException& e) {
+    } catch (NoSuchOpException &e) {
       return realize_cudnn(handle);
     }
 

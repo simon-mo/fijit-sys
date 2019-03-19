@@ -43,7 +43,6 @@ PoolingOperator::PoolingOperator(cudnnHandle_t *handle_,
     }
   }
 
-
   if (kernel_h == 0 || kernel_w == 0) {
     kernel_h = shapes[2];
     kernel_w = shapes[3];
@@ -235,7 +234,6 @@ ReluOperator::ReluOperator(cudnnHandle_t *handle_, ValueInfoProto input_shape_)
     input_shapes.push_back(d.dim_value());
   }
 
-
   CHECK_CUDNN(cudnnSetTensor4dDescriptor(
       /* cudnnTensorDescriptor_t tensorDesc */ input_desc,
       /* cudnnTensorFormat_t format */ CUDNN_TENSOR_NCHW,
@@ -316,7 +314,6 @@ BatchNormOperator::BatchNormOperator(cudnnHandle_t *handle_,
   for (auto d : input_shape_.type().tensor_type().shape().dim()) {
     input_shapes.push_back(d.dim_value());
   }
-
 
   CHECK_CUDNN(cudnnSetTensor4dDescriptor(
       /* cudnnTensorDescriptor_t tensorDesc */ input_desc,
@@ -564,7 +561,6 @@ ConvOperator::ConvOperator(
   assert(channels == output_shapes[1]);
   assert(height == output_shapes[2]);
   assert(width == output_shapes[3]);
-
 }
 
 void ConvOperator::set_argument(KERNEL_ARG arg, CUdeviceptr ptr) {
@@ -603,8 +599,7 @@ vector<cudaEvent_t> ConvOperator::dispatch(cudaStream_t s) {
       *handle, scalers, input_descriptor, CUDevicePtrConstCast(input),
       kernel_descriptor, CUDevicePtrConstCast(data), convolution_descriptor,
       CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_GEMM, nullptr, 0, scalers + 1,
-      output_descriptor, CUDevicePtrCast(output)
-      );
+      output_descriptor, CUDevicePtrCast(output));
 
   CHECK_CUDA(cudaEventRecord(events[1], s));
   return events;

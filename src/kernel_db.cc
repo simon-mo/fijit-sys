@@ -34,13 +34,11 @@ vector<string> split(string s, string delimiter) {
   return list;
 }
 
-
 bool KernelDB::exists(string &op) {
-    auto &c = rdx.commandSync<int>({"EXISTS", op});
-    CHECK_OK(c)
-    return (bool) c.reply();
-  }
-
+  auto &c = rdx.commandSync<int>({"EXISTS", op});
+  CHECK_OK(c)
+  return (bool)c.reply();
+}
 
 string KernelDB::get_fatbin(string &op) {
 

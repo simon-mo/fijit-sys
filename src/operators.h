@@ -39,7 +39,7 @@ public:
 
   CUdeviceptr data, input, output;
 
-  string get_name() { return "TVM-Conv";};
+  string get_name() { return "TVM-Conv"; };
 
 private:
   cudaEvent_t start_event, end_event;
@@ -52,7 +52,7 @@ public:
   void set_argument(KERNEL_ARG arg, CUdeviceptr ptr);
   vector<cudaEvent_t> dispatch(cudaStream_t stream);
 
-  string get_name() { return  "Native-Reshape";};
+  string get_name() { return "Native-Reshape"; };
 
 private:
   int total_size;

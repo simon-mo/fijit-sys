@@ -64,7 +64,6 @@ GemmOperator::GemmOperator(
     A_shape.pop_back();
   }
 
-
   assert((A_shape.size() == 2) && (B_shape.size() == 2) &&
          (C_shape.size() == 2));
 
@@ -74,7 +73,6 @@ GemmOperator::GemmOperator(
 
   assert(C_shape[0] == m);
   assert(C_shape[1] == n);
-
 }
 
 void GemmOperator::set_argument(KERNEL_ARG arg, CUdeviceptr ptr) {

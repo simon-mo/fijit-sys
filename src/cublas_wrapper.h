@@ -26,8 +26,7 @@ public:
   std::vector<cudaEvent_t> dispatch(cudaStream_t) override;
   void set_argument(KERNEL_ARG, CUdeviceptr) override;
 
-
-  string get_name() { return "Cublas-Gemm";};
+  string get_name() { return "Cublas-Gemm"; };
 
 private:
   cublasHandle_t *handle;
