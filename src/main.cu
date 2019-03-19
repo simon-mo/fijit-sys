@@ -20,13 +20,9 @@
 
 #include "fmt/core.h"
 
-#include "rapidjson/document.h"
-#include "rapidjson/stringbuffer.h"
-#include "rapidjson/writer.h"
+#include "reporter.h"
 
 #include "cxxopts/cxxopts.hpp"
-
-using namespace rapidjson;
 
 using namespace std;
 using namespace onnx;
@@ -104,34 +100,37 @@ int main(int argc, char *argv[]) {
   }
 
   // Step 3, construct logical DAG
-  vector<LogicalOperator> ops;
+  shared_ptr<vector<LogicalOperator>> ops =
+      make_shared<vector<LogicalOperator>>();
   for (auto n : model.graph().node()) {
-    ops.emplace_back(n, shape_map);
+    ops->emplace_back(n, shape_map);
   }
 
   // Step 4, realize operators
-  vector<unique_ptr<PhysicalOperator>> physical_ops;
-  for (auto o : ops) {
-    physical_ops.push_back(o.realize(max_block, &handle, &cublasHandle));
+  shared_ptr<vector<shared_ptr<PhysicalOperator>>> physical_ops =
+      make_shared<vector<shared_ptr<PhysicalOperator>>>();
+  for (auto o : *ops) {
+    physical_ops->push_back(o.realize(max_block, &handle, &cublasHandle));
   }
 
   // Step 5, connect the graph
   for (int i = 0; i < model.graph().node().size(); ++i) {
     auto n = model.graph().node().Get(i);
 
-    physical_ops[i]->set_argument(INPUT, mm->get_device_ptr(n.input().Get(0)));
+    physical_ops->at(i)->set_argument(INPUT,
+                                      mm->get_device_ptr(n.input().Get(0)));
 
     if (n.input().size() > 1) {
       for (int j = 1; j < n.input().size(); ++j) {
         // TODO(simon): make sure we can set multiple data ptr and not overrides
         // then This is undefined for convs and pool
-        physical_ops[i]->set_argument(DATA,
-                                      mm->get_device_ptr(n.input().Get(j)));
+        physical_ops->at(i)->set_argument(DATA,
+                                          mm->get_device_ptr(n.input().Get(j)));
       }
     }
 
-    physical_ops[i]->set_argument(OUTPUT,
-                                  mm->get_device_ptr(n.output().Get(0)));
+    physical_ops->at(i)->set_argument(OUTPUT,
+                                      mm->get_device_ptr(n.output().Get(0)));
   }
 
   // Step 6, start dispatch
@@ -141,68 +140,23 @@ int main(int argc, char *argv[]) {
   cudaEventCreate(&start_of_world);
   cudaEventRecord(start_of_world, s);
 
-  vector<vector<cudaEvent_t>> events_collection(0);
-  for (auto &op : physical_ops) {
+  shared_ptr<vector<vector<cudaEvent_t>>> events_collection =
+      make_shared<vector<vector<cudaEvent_t>>>(0);
+  for (auto &op : *physical_ops) {
     vector<cudaEvent_t> events = op->dispatch(s);
-    events_collection.push_back(events);
+    events_collection->push_back(events);
   }
 
-  CHECK_CUDA(
-      cudaEventSynchronize(events_collection[events_collection.size() - 1][1]));
+  CHECK_CUDA(cudaEventSynchronize(
+      events_collection->at(events_collection->size() - 1)[1]));
   CHECK_CUDA(cudaDeviceSynchronize());
 
   // Step 7: Printout chrome://tracing data
+  ChromeTraceReporter reporter_1(ops, physical_ops, events_collection,
+                                 start_of_world);
+  TotalTimeReporter reporter_2(ops, physical_ops, events_collection,
+                               start_of_world);
 
-  //  [
-  //  { "pid":1, "tid":1, "ts":87705, "dur":956189, "ph":"X", "name":"Jambase",
-  //  "args":{ "ms":956.2 } },
-  //  { "pid":1, "tid":1, "ts":128154, "dur":75867, "ph":"X",
-  //  "name":"SyncTargets", "args":{ "ms":75.9 } },
-  //  { "pid":1, "tid":1, "ts":546867, "dur":121564, "ph":"X",
-  //  "name":"DoThings", "args":{ "ms":121.6 } }
-  //  ]
-
-  Document document;
-  Document::AllocatorType &allocator = document.GetAllocator();
-
-  document.SetArray();
-
-  for (int k = 0; k < physical_ops.size(); ++k) {
-
-    float duration, start_time;
-    cudaEvent_t start = events_collection[k][0];
-    cudaEvent_t end = events_collection[k][1];
-
-    cudaEventElapsedTime(&duration, start, end);
-    cudaEventElapsedTime(&start_time, start_of_world, start);
-
-    string op_name = physical_ops[k]->get_name();
-    string formatted_op_name = fmt::format("{}-{}", op_name, k);
-
-    Value name;
-    name.SetString(formatted_op_name.c_str(), formatted_op_name.size(),
-                   allocator);
-
-    Value item(kObjectType);
-    item.AddMember("pid", Value(1), allocator);
-    item.AddMember("tid", Value(1), allocator);
-    item.AddMember("ts", start_time, allocator);
-    item.AddMember("dur", duration, allocator);
-    item.AddMember("ph", Value("X"), allocator);
-    item.AddMember("name", name, allocator);
-    document.PushBack(item.Move(), allocator);
-  }
-
-  StringBuffer buffer;
-  Writer<StringBuffer> writer(buffer);
-  document.Accept(writer);
-
-  std::cout << buffer.GetString() << std::endl;
-
-  // Step 8: Printout total latency
-
-  float total_time;
-  cudaEventElapsedTime(&total_time, start_of_world,
-                       events_collection[events_collection.size() - 1][1]);
-  std::cout << fmt::format("Total time: {} ms", total_time);
+  std::cout << reporter_1.report() << std::endl;
+  std::cout << reporter_2.report() << std::endl;
 }

@@ -1,6 +1,7 @@
 #ifndef OPERATORS_H
 #define OPERATORS_H
 
+#include "cublas_v2.h"
 #include "cuda.h"
 #include "cuda_runtime.h"
 #include "cudnn.h"
@@ -64,11 +65,11 @@ private:
 class LogicalOperator {
 public:
   LogicalOperator(NodeProto, shared_ptr<unordered_map<string, ValueInfoProto>>);
-  unique_ptr<PhysicalOperator> realize(int max_blocks, cudnnHandle_t *handle,
+  shared_ptr<PhysicalOperator> realize(int max_blocks, cudnnHandle_t *handle,
                                        cublasHandle_t *cublasHandle);
-  unique_ptr<TVMOperator> realize_tvm(int max_blocks);
-  unique_ptr<CUBLASOperator> realize_cublas(cublasHandle_t *cublasHandle);
-  unique_ptr<CUDNNOperator> realize_cudnn(cudnnHandle_t *handle);
+  shared_ptr<TVMOperator> realize_tvm(int max_blocks);
+  shared_ptr<CUBLASOperator> realize_cublas(cublasHandle_t *cublasHandle);
+  shared_ptr<CUDNNOperator> realize_cudnn(cudnnHandle_t *handle);
 
 private:
   string type;

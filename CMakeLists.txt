@@ -28,7 +28,6 @@ add_executable(
 )
 
 target_link_libraries(${PROJECT_NAME}
-        rapidjson
         proto ${PROTOBUF_LIBRARY}
         )
 
@@ -67,13 +66,17 @@ add_library(cuda_lib STATIC
         src/abstract_operators.h
         src/cublas_wrapper.h
         src/cublas_wrapper.cu
+        src/reporter.h
+        src/reporter.cu
         )
 target_link_libraries(cuda_lib
         cuda_common
         redox
         CUDA::cudart CUDA::cuda CUDA::cudnn CUDA::cublas
         fijit-lib
-        fmt::fmt)
+        fmt::fmt
+        rapidjson
+        )
 target_link_libraries(${PROJECT_NAME} cuda_lib cuda_common)
 target_compile_features(cuda_lib PUBLIC cxx_std_14)
 set_target_properties(cuda_lib PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
