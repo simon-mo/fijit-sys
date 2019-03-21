@@ -70,6 +70,12 @@ add_library(cuda_lib STATIC
         src/reporter.cu
         src/model_manager.h
         src/model_manager.cu
+
+        src/scheduler.cu
+        src/scheduler.h
+
+        third_party/concurrentqueue/blockingconcurrentqueue.h
+        third_party/concurrentqueue/concurrentqueue.h
         )
 
 target_link_libraries(cuda_lib

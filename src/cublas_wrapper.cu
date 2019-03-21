@@ -105,7 +105,10 @@ vector<cudaEvent_t> GemmOperator::dispatch(cudaStream_t s) {
   CHECK_CUDA(cudaEventRecord(events[0], s));
   CHECK_CUBLAS(cublasSetStream(*handle, s));
 
-  CHECK_CUDEVICE(cuMemcpyDtoDAsync(output, bias, m * n * sizeof(float), s));
+  for (int i = 0; i < m; i++) {
+    CHECK_CUDEVICE(
+        cuMemcpyDtoDAsync(output + n * i, bias, n * sizeof(float), s));
+  }
 
   CHECK_CUBLAS(cublasSgemm(
       /* cublasHandle_t handle */ *handle,
