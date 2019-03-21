@@ -5,3 +5,4 @@ cmake-build-release/
 include/
 *.swp
 .idea/
+cmake-build-debug-p3/
