@@ -49,7 +49,7 @@ public:
 private:
   cudnnHandle_t *handle;
   CUdeviceptr input, output, data;
-  bool input_is_set, output_is_set, data_is_set;
+  bool input_is_set = false, output_is_set = false, data_is_set = false;
   int total_size = 0;
   cudnnTensorDescriptor_t input_desc, output_desc;
 };

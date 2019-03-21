@@ -4,6 +4,7 @@
 #include "cuda_runtime_api.h"
 #include "cudnn.h"
 #include "memory_manager.h"
+#include "model_manager.h"
 #include "onnx_helper.h"
 #include "operators.h"
 #include "proto/onnx.pb.h"
@@ -49,12 +50,14 @@ int main(int argc, char *argv[]) {
 
   cxxopts::Options options("fijit-sys", "FIJIT Inference Engine");
   options.positional_help("[optional args]").show_positional_help();
-  options.add_options()("m,model", "Path to the model ONNX file",
-                        cxxopts::value<string>())(
-      "i,input", "Path to the input ONNX file", cxxopts::value<string>())(
-      "max-block", "Max block for TVM ops",
-      cxxopts::value<int>())("input-name", "Override input tensor name",
-                             cxxopts::value<string>())("h, help", "Print help");
+  // clang-format off
+  options.add_options()
+      ("m,model", "Path to the model ONNX file", cxxopts::value<string>())
+      ("i,input", "Path to the input ONNX file", cxxopts::value<string>())
+      ("max-block", "Max block for TVM ops", cxxopts::value<int>())
+      ("input-name", "Override input tensor name", cxxopts::value<string>())
+      ("h, help", "Print help");
+  // clang-format on
   auto result = options.parse(argc, argv);
 
   if (result.count("help")) {
@@ -65,6 +68,7 @@ int main(int argc, char *argv[]) {
   const char *model_path = result["model"].as<string>().c_str();
   string input_path = result["input"].as<string>();
   int max_block = result["max-block"].as<int>();
+  string input_name = result["input-name"].as<string>();
 
   ModelProto model;
   parse_model(model, model_path);
@@ -74,81 +78,46 @@ int main(int argc, char *argv[]) {
 
   cuda_init();
   cudnnHandle_t handle;
-  cudnnCreate(&handle);
   cublasHandle_t cublasHandle;
+
+  cudnnCreate(&handle);
   cublasCreate(&cublasHandle);
 
-  // Step 1, malloc all data
-  shared_ptr<MemoryManager> mm = make_shared<MemoryManager>();
+  shared_ptr<StaticMemoryManager> smm = make_shared<StaticMemoryManager>();
+  shared_ptr<DynamicMemoryManager> dmm = make_shared<DynamicMemoryManager>();
+  shared_ptr<ModelManager> model_manager = make_shared<ModelManager>(smm, dmm);
 
-  shared_ptr<unordered_map<string, ValueInfoProto>> shape_map =
-      traverse_shapes(model.graph());
+  string model_name = "default-model";
+  model_manager->register_model(model, model_name);
 
-  for (auto name_to_val : *shape_map) {
-    mm->register_placeholder(name_to_val.second);
-  }
-
-  // Step 2, fill in the placeholder
-  for (auto tensor : model.graph().initializer()) {
-    mm->register_tensor(tensor);
-  }
-
-  if (result.count("input-name")) {
-    mm->register_tensor(input, result["input-name"].as<string>());
-  } else {
-    mm->register_tensor(input);
-  }
-
-  // Step 3, construct logical DAG
-  shared_ptr<vector<LogicalOperator>> ops =
-      make_shared<vector<LogicalOperator>>();
-  for (auto n : model.graph().node()) {
-    ops->emplace_back(n, shape_map);
-  }
+  int query_id = 0;
+  vector<shared_ptr<LogicalOperator>> logical_ops =
+      model_manager->instantiate_model(model_name, query_id);
+  auto ops = make_shared<decltype(logical_ops)>(move(logical_ops));
+  model_manager->register_input(model_name, query_id, input, input_name);
 
   // Step 4, realize operators
   shared_ptr<vector<shared_ptr<PhysicalOperator>>> physical_ops =
       make_shared<vector<shared_ptr<PhysicalOperator>>>();
   for (auto o : *ops) {
-    physical_ops->push_back(o.realize(max_block, &handle, &cublasHandle));
-  }
-
-  // Step 5, connect the graph
-  for (int i = 0; i < model.graph().node().size(); ++i) {
-    auto n = model.graph().node().Get(i);
-
-    physical_ops->at(i)->set_argument(INPUT,
-                                      mm->get_device_ptr(n.input().Get(0)));
-
-    if (n.input().size() > 1) {
-      for (int j = 1; j < n.input().size(); ++j) {
-        // TODO(simon): make sure we can set multiple data ptr and not overrides
-        // then This is undefined for convs and pool
-        physical_ops->at(i)->set_argument(DATA,
-                                          mm->get_device_ptr(n.input().Get(j)));
-      }
-    }
-
-    physical_ops->at(i)->set_argument(OUTPUT,
-                                      mm->get_device_ptr(n.output().Get(0)));
+    physical_ops->push_back(o->realize(max_block, &handle, &cublasHandle));
   }
 
   // Step 6, start dispatch
   cudaStream_t s;
   cudaStreamCreate(&s);
+
   cudaEvent_t start_of_world;
   cudaEventCreate(&start_of_world);
   cudaEventRecord(start_of_world, s);
 
   shared_ptr<vector<vector<cudaEvent_t>>> events_collection =
       make_shared<vector<vector<cudaEvent_t>>>(0);
-  for (auto &op : *physical_ops) {
-    vector<cudaEvent_t> events = op->dispatch(s);
-    events_collection->push_back(events);
+
+  for (int i = 0; i < physical_ops->size(); ++i) {
+    events_collection->emplace_back(physical_ops->at(i)->dispatch(s));
   }
 
-  CHECK_CUDA(cudaEventSynchronize(
-      events_collection->at(events_collection->size() - 1)[1]));
   CHECK_CUDA(cudaDeviceSynchronize());
 
   // Step 7: Printout chrome://tracing data
@@ -157,6 +126,6 @@ int main(int argc, char *argv[]) {
   TotalTimeReporter reporter_2(ops, physical_ops, events_collection,
                                start_of_world);
 
-  std::cout << reporter_1.report() << std::endl;
+  std::cout << reporter_1.report(1) << std::endl;
   std::cout << reporter_2.report() << std::endl;
 }

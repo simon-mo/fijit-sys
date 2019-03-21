@@ -8,7 +8,9 @@
 using namespace std;
 using namespace rapidjson;
 
-string ChromeTraceReporter::report() {
+string ChromeTraceReporter::report() { return report(1); }
+
+string ChromeTraceReporter::report(int tid) {
   /*
    *   //  [
   //  { "pid":1, "tid":1, "ts":87705, "dur":956189, "ph":"X", "name":"Jambase",
@@ -42,7 +44,7 @@ string ChromeTraceReporter::report() {
 
     Value item(kObjectType);
     item.AddMember("pid", Value(1), allocator);
-    item.AddMember("tid", Value(1), allocator);
+    item.AddMember("tid", Value(tid), allocator);
     item.AddMember("ts", start_time, allocator);
     item.AddMember("dur", duration, allocator);
     item.AddMember("ph", Value("X"), allocator);

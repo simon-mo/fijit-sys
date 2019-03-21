@@ -5,9 +5,9 @@
 #ifndef FIJIT_SYS_ABSTRACT_OPERATORS_H
 #define FIJIT_SYS_ABSTRACT_OPERATORS_H
 
-#include "../include/cuda.h"
-#include "../include/cudnn.h"
 #include "common.h"
+#include "cuda.h"
+#include "cudnn.h"
 #include <vector>
 
 class PhysicalOperator {
@@ -19,7 +19,10 @@ public:
   virtual string get_name() = 0;
 };
 
-class CUDNNOperator : public PhysicalOperator {};
+class CUDNNOperator : public PhysicalOperator {
+public:
+  vector<cudaEvent_t> events;
+};
 
 class CUBLASOperator : public PhysicalOperator {};
 

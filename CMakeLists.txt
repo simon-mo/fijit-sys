@@ -38,7 +38,7 @@ add_library(fijit-lib SHARED
         src/kernel_db.cc
         src/common.h
         src/onnx_helper.h
-        )
+        src/onnx_helper.cc)
 target_link_libraries(fijit-lib redox)
 target_link_libraries(${PROJECT_NAME} fijit-lib)
 target_compile_features(fijit-lib PUBLIC cxx_std_14)
@@ -68,7 +68,10 @@ add_library(cuda_lib STATIC
         src/cublas_wrapper.cu
         src/reporter.h
         src/reporter.cu
+        src/model_manager.h
+        src/model_manager.cu
         )
+
 target_link_libraries(cuda_lib
         cuda_common
         redox

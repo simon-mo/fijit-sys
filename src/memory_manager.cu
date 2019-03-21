@@ -1,6 +1,7 @@
 #include "common_cuda.h"
 #include "cuda.h"
 #include "memory_manager.h"
+#include "onnx_helper.h"
 #include "proto/onnx.pb.h"
 #include <cassert>
 #include <iostream>
@@ -8,65 +9,46 @@
 using namespace onnx;
 using namespace std;
 
-void MemoryManager::register_placeholder(ValueInfoProto &tensor) {
-  string name = tensor.name();
-  if (contains(name)) {
-    cerr << "Tensor " << name << " is already registered" << endl;
-    return;
-  }
+void StaticMemoryManager::register_tensor(StaticBufferKey &key,
+                                          TensorProto &tensor) {
+  size_t num_elems = get_size(tensor);
 
-  auto shape_info = tensor.type().tensor_type().shape();
+  CUdeviceptr ptr;
+  CHECK_CUDEVICE(cuMemAlloc(&ptr, num_elems * sizeof(float)));
+  CHECK_CUDEVICE(
+      cuMemcpyHtoD(ptr, tensor.raw_data().c_str(), num_elems * sizeof(float)));
 
-  int num_elems = 1;
-  for (auto d : shape_info.dim()) {
-    num_elems *= d.dim_value();
-  }
-  //
-  //  if (tensor.type().tensor_type().elem_type() != TensorProto_DataType_FLOAT)
-  //  {
-  //    cerr << "We expect float tensor only : " << endl;
-  //    cerr << tensor.DebugString() << endl;
-  //    assert(false);
-  //  }
+  BufferEntry entry{.ptr = ptr, .num_elems = num_elems};
+
+  storage.insert({key, entry});
+}
+
+CUdeviceptr StaticMemoryManager::get_device_ptr(StaticBufferKey &key) {
+  return storage.at(key).ptr;
+}
+
+void DynamicMemoryManager::register_placeholder(DynamicBufferKey &key,
+                                                ValueInfoProto &info) {
+  size_t num_elems = get_size(info);
 
   CUdeviceptr ptr;
   CHECK_CUDEVICE(cuMemAlloc(&ptr, num_elems * sizeof(float)));
 
-  storage.insert({name, make_tuple(ptr, num_elems)});
+  BufferEntry entry{.ptr = ptr, .num_elems = num_elems};
+
+  storage.insert({key, entry});
 }
 
-void MemoryManager::register_tensor(TensorProto &tensor) {
-  string name = tensor.name();
-  register_tensor(tensor, name);
+void DynamicMemoryManager::register_tensor(DynamicBufferKey &key,
+                                           TensorProto &tensor) {
+  size_t num_elems = get_size(tensor);
+  BufferEntry entry = storage.at(key);
+
+  assert(entry.num_elems == num_elems);
+  CHECK_CUDEVICE(cuMemcpyHtoD(entry.ptr, tensor.raw_data().c_str(),
+                              num_elems * sizeof(float)));
 }
 
-void MemoryManager::register_tensor(TensorProto &tensor, string name) {
-  FIJITTensor t = storage.at(name);
-
-  CUdeviceptr ptr = get<0>(t);
-  int num_elems = get<1>(t);
-
-  CHECK_CUDEVICE(
-      cuMemcpyHtoD(ptr, tensor.raw_data().c_str(), num_elems * sizeof(float)));
-}
-
-int MemoryManager::num_entries() { return storage.size(); }
-
-bool MemoryManager::contains(string s) {
-  return storage.find(s) != storage.end();
-}
-
-CUdeviceptr MemoryManager::get_device_ptr(string s) {
-  return get<0>(storage.at(s));
-}
-
-float *MemoryManager::get_value(string s) {
-  FIJITTensor t = storage.at(s);
-
-  CUdeviceptr ptr = get<0>(t);
-  int size = get<1>(t);
-
-  float *arr = new float[size];
-  CHECK_CUDEVICE(cuMemcpyDtoH(arr, ptr, size * sizeof(float)));
-  return arr;
+CUdeviceptr DynamicMemoryManager::get_device_ptr(DynamicBufferKey &key) {
+  return storage.at(key).ptr;
 }

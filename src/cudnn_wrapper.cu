@@ -10,6 +10,16 @@
 using namespace onnx;
 using namespace std;
 
+vector<cudaEvent_t> cuda_get_events(int num_events) {
+  vector<cudaEvent_t> events(0);
+  for (int i = 0; i < num_events; ++i) {
+    cudaEvent_t e;
+    CHECK_CUDA(cudaEventCreate(&e));
+    events.push_back(e);
+  }
+  return events;
+}
+
 PoolingOperator::PoolingOperator(cudnnHandle_t *handle_,
                                  ValueInfoProto input_shape_, NodeProto node,
                                  cudnnPoolingMode_t mode)
@@ -18,6 +28,8 @@ PoolingOperator::PoolingOperator(cudnnHandle_t *handle_,
   CHECK_CUDNN(cudnnCreatePoolingDescriptor(&pool_desc));
   CHECK_CUDNN(cudnnCreateTensorDescriptor(&input_desc));
   CHECK_CUDNN(cudnnCreateTensorDescriptor(&output_desc));
+
+  events = cuda_get_events(2);
 
   vector<int> shapes(0);
   for (auto d : input_shape_.type().tensor_type().shape().dim()) {
@@ -91,23 +103,12 @@ PoolingOperator::PoolingOperator(cudnnHandle_t *handle_,
       /* int w */ outW));
 }
 
-vector<cudaEvent_t> cuda_get_events(int num_events) {
-  vector<cudaEvent_t> events(0);
-  for (int i = 0; i < num_events; ++i) {
-    cudaEvent_t e;
-    CHECK_CUDA(cudaEventCreate(&e));
-    events.push_back(e);
-  }
-  return events;
-}
-
 vector<cudaEvent_t> PoolingOperator::dispatch(cudaStream_t s) {
   assert(input_is_set && output_is_set);
 
   float *scalers = new float[2];
   scalers[0] = 1;
   scalers[1] = 0;
-  vector<cudaEvent_t> events = cuda_get_events(2);
 
   CHECK_CUDA(cudaEventRecord(events[0], s));
   cudnnSetStream(*handle, s);
@@ -144,6 +145,7 @@ AddOperator::AddOperator(cudnnHandle_t *handle_, ValueInfoProto input_shape_,
     : handle{handle_} {
   CHECK_CUDNN(cudnnCreateTensorDescriptor(&input_desc));
   CHECK_CUDNN(cudnnCreateTensorDescriptor(&output_desc));
+  events = cuda_get_events(2);
 
   vector<int> input_shapes(0);
   for (auto d : input_shape_.type().tensor_type().shape().dim()) {
@@ -180,6 +182,9 @@ AddOperator::AddOperator(cudnnHandle_t *handle_, ValueInfoProto input_shape_,
 }
 
 void AddOperator::set_argument(KERNEL_ARG arg, CUdeviceptr ptr) {
+  if ((arg == INPUT) && (input_is_set)) {
+    arg = DATA;
+  }
   switch (arg) {
   case (INPUT):
     input = ptr;
@@ -204,8 +209,6 @@ vector<cudaEvent_t> AddOperator::dispatch(cudaStream_t s) {
   scalers[0] = 1;
   scalers[1] = 1;
 
-  vector<cudaEvent_t> events = cuda_get_events(2);
-
   CHECK_CUDA(cudaEventRecord(events[0], s));
   cudnnSetStream(*handle, s);
 
@@ -228,6 +231,7 @@ ReluOperator::ReluOperator(cudnnHandle_t *handle_, ValueInfoProto input_shape_)
     : handle{handle_} {
   CHECK_CUDNN(cudnnCreateTensorDescriptor(&input_desc));
   CHECK_CUDNN(cudnnCreateTensorDescriptor(&output_desc));
+  events = cuda_get_events(2);
 
   vector<int> input_shapes(0);
   for (auto d : input_shape_.type().tensor_type().shape().dim()) {
@@ -282,8 +286,6 @@ std::vector<cudaEvent_t> ReluOperator::dispatch(cudaStream_t s) {
   scalers[0] = 1;
   scalers[1] = 1;
 
-  vector<cudaEvent_t> events = cuda_get_events(2);
-
   CHECK_CUDA(cudaEventRecord(events[0], s));
   CHECK_CUDNN(cudnnSetStream(*handle, s));
 
@@ -309,6 +311,7 @@ BatchNormOperator::BatchNormOperator(cudnnHandle_t *handle_,
   CHECK_CUDNN(cudnnCreateTensorDescriptor(&input_desc));
   CHECK_CUDNN(cudnnCreateTensorDescriptor(&output_desc));
   CHECK_CUDNN(cudnnCreateTensorDescriptor(&batch_norm_desc));
+  events = cuda_get_events(2);
 
   vector<int> input_shapes(0);
   for (auto d : input_shape_.type().tensor_type().shape().dim()) {
@@ -364,8 +367,6 @@ vector<cudaEvent_t> BatchNormOperator::dispatch(cudaStream_t s) {
   scalers[0] = 1;
   scalers[1] = 0;
 
-  vector<cudaEvent_t> events = cuda_get_events(2);
-
   CHECK_CUDA(cudaEventRecord(events[0], s));
   CHECK_CUDNN(cudnnSetStream(*handle, s));
 
@@ -400,6 +401,7 @@ SoftMaxOperator::SoftMaxOperator(cudnnHandle_t *handle_,
     : handle(handle_) {
   CHECK_CUDNN(cudnnCreateTensorDescriptor(&input_desc));
   CHECK_CUDNN(cudnnCreateTensorDescriptor(&output_desc));
+  events = cuda_get_events(2);
 
   vector<int> input_shapes(0);
   for (auto d : input_shape_.type().tensor_type().shape().dim()) {
@@ -451,8 +453,6 @@ vector<cudaEvent_t> SoftMaxOperator::dispatch(cudaStream_t s) {
   scalers[0] = 1;
   scalers[1] = 0;
 
-  vector<cudaEvent_t> events = cuda_get_events(2);
-
   CHECK_CUDA(cudaEventRecord(events[0], s));
   CHECK_CUDNN(cudnnSetStream(*handle, s));
 
@@ -479,6 +479,8 @@ ConvOperator::ConvOperator(
   CHECK_CUDNN(cudnnCreateFilterDescriptor(&kernel_descriptor));
   CHECK_CUDNN(cudnnCreateConvolutionDescriptor(&convolution_descriptor));
   CHECK_CUDNN(cudnnCreateTensorDescriptor(&output_descriptor));
+
+  events = cuda_get_events(2);
 
   string input_name = node.input().Get(0);
   string filter_name = node.input().Get(1);
@@ -586,8 +588,6 @@ void ConvOperator::set_argument(KERNEL_ARG arg, CUdeviceptr ptr) {
 
 vector<cudaEvent_t> ConvOperator::dispatch(cudaStream_t s) {
   assert(input_is_set && output_is_set && data_is_set);
-
-  vector<cudaEvent_t> events = cuda_get_events(2);
 
   float *scalers = new float[2];
   scalers[0] = 1;

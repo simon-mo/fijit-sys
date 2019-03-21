@@ -132,7 +132,6 @@ LogicalOperator::LogicalOperator(NodeProto node_,
 
   type = node.op_type();
 
-  //  We only support Conv for now
   assert(AllowedOps.find(type) != AllowedOps.end());
 
   // Check we have all the shape info
@@ -222,25 +221,25 @@ shared_ptr<TVMOperator> LogicalOperator::realize_tvm(int max_blocks) {
       db.get_fatbin(redis_key), db.get_block_dim(redis_key),
       db.get_grid_dim(redis_key), db.get_kernel_args(redis_key),
       db.get_kernel_name(redis_key));
+
+  inject_kwargs(op);
+
   return op;
 }
 
 shared_ptr<CUDNNOperator>
 LogicalOperator::realize_cudnn(cudnnHandle_t *handle) {
+  shared_ptr<CUDNNOperator> ptr;
   if (type == "AveragePool" || type == "GlobalAveragePool") {
-    auto ptr = make_shared<PoolingOperator>(
+    ptr = make_shared<PoolingOperator>(
         handle, input_shape, node, CUDNN_POOLING_AVERAGE_COUNT_EXCLUDE_PADDING);
-    return ptr;
   } else if (type == "MaxPool") {
-    auto ptr = make_shared<PoolingOperator>(handle, input_shape, node,
-                                            CUDNN_POOLING_MAX);
-    return ptr;
+    ptr = make_shared<PoolingOperator>(handle, input_shape, node,
+                                       CUDNN_POOLING_MAX);
   } else if (type == "Sum" || type == "Add") {
-    auto ptr = make_shared<AddOperator>(handle, input_shape, output_shape);
-    return ptr;
+    ptr = make_shared<AddOperator>(handle, input_shape, output_shape);
   } else if (type == "Relu") {
-    auto ptr = make_shared<ReluOperator>(handle, input_shape);
-    return ptr;
+    ptr = make_shared<ReluOperator>(handle, input_shape);
   } else if (type == "BatchNormalization") {
     double epsilon = std::numeric_limits<double>::max();
     for (auto attri : node.attribute()) {
@@ -251,24 +250,25 @@ LogicalOperator::realize_cudnn(cudnnHandle_t *handle) {
     if (epsilon == std::numeric_limits<double>::max()) {
       throw runtime_error("Can't find epsilon for bn");
     }
-    auto ptr = make_shared<BatchNormOperator>(handle, input_shape, epsilon);
-    return ptr;
+    ptr = make_shared<BatchNormOperator>(handle, input_shape, epsilon);
   } else if (type == "Softmax") {
-    auto ptr = make_shared<SoftMaxOperator>(handle, input_shape);
-    return ptr;
+    ptr = make_shared<SoftMaxOperator>(handle, input_shape);
   } else if (type == "Conv") {
-    auto ptr = make_shared<ConvOperator>(handle, node, io_shapes);
-    return ptr;
+    ptr = make_shared<ConvOperator>(handle, node, io_shapes);
   } else {
     throw runtime_error(
         "LogicalOperator::realize_cudnn only accepts AvgPool MaxPool\n");
   }
+  inject_kwargs(ptr);
+  return ptr;
 }
 
 shared_ptr<CUBLASOperator>
 LogicalOperator::realize_cublas(cublasHandle_t *cublasHandle) {
-
-  return make_shared<GemmOperator>(cublasHandle, node, io_shapes);
+  shared_ptr<CUBLASOperator> ptr =
+      make_shared<GemmOperator>(cublasHandle, node, io_shapes);
+  inject_kwargs(ptr);
+  return ptr;
 }
 
 shared_ptr<PhysicalOperator>
@@ -295,7 +295,9 @@ LogicalOperator::realize(int max_blocks, cudnnHandle_t *handle,
     for (auto d : input_shape.type().tensor_type().shape().dim()) {
       dim *= d.dim_value();
     }
-    return make_shared<ReshapeOperator>(dim);
+    auto ptr = make_shared<ReshapeOperator>(dim);
+    inject_kwargs(ptr);
+    return ptr;
 
   } else {
     throw runtime_error("Can't realize logical operator");
