@@ -161,19 +161,15 @@ int main(int argc, char *argv[]) {
             std::this_thread::sleep_for(std::chrono::milliseconds(1000 / qps));
         }
 
-        for (int i = 0; i < ntrials; i++) {
-            for (auto &op : *ctx.physical_ops) {
-                events_collection->push_back(op->dispatch(s));
-            }
-        }
-
         CHECK_CUDA(cudaEventSynchronize(events_collection->at(events_collection->size() - 1)[1]));
         CHECK_CUDA(cudaDeviceSynchronize());
 
-        // ChromeTraceReporter reporter_1(ctx.ops, ctx.physical_ops, events_collection, start_of_world);
+        ChromeTraceReporter reporter_1(ctx.ops, ctx.physical_ops, events_collection, start_of_world);
         TotalTimeReporter reporter_2(ctx.ops, ctx.physical_ops, events_collection, start_of_world);
+        ModelTimeReporter reporter_3(ctx.ops, ctx.physical_ops, events_collection, start_of_world);
         //std::cout << reporter_1.report() << std::endl;
-        std::cout << "QPS[" << qps << "] " << reporter_2.report() << std::endl;
+        // std::cout << "QPS[" << qps << "] " << reporter_2.report() << std::endl;
+        std::cout << "QPS[" << qps << "]\t" << reporter_3.report() << std::endl;
 
         cudnnDestroy(handle);
         cublasDestroy(cublasHandle);
