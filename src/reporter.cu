@@ -61,5 +61,5 @@ string TotalTimeReporter::report() {
   float total_time;
   cudaEventElapsedTime(&total_time, start_of_the_world,
                        events_collection->at(events_collection->size() - 1)[1]);
-  return fmt::format("Total time: {} ms", total_time);
+  return fmt::format("{} ms", total_time);
 }

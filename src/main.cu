@@ -11,6 +11,9 @@
 #include <iostream>
 #include <string>
 
+#include <chrono>
+#include <thread>
+
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -24,139 +27,155 @@
 
 #include "cxxopts/cxxopts.hpp"
 
+
+struct ModelCtx {
+    shared_ptr <vector<shared_ptr < PhysicalOperator>>> physical_ops;
+    shared_ptr <vector<LogicalOperator>> ops;
+};
+
 using namespace std;
 using namespace onnx;
 using namespace google::protobuf::io;
 
-void parse_model(ModelProto &model, const char *model_path) {
-  int fd = open(model_path, O_RDONLY);
-  ZeroCopyInputStream *raw_input = new FileInputStream(fd);
-  CodedInputStream *coded_input = new CodedInputStream(raw_input);
-  coded_input->SetTotalBytesLimit(671088640, 167108860);
+void load_model(ModelProto &model, TensorProto &input, string model_path, string input_path) {
+    int fd = open(model_path.c_str(), O_RDONLY);
+    ZeroCopyInputStream *raw_input = new FileInputStream(fd);
+    CodedInputStream *coded_input = new CodedInputStream(raw_input);
+    coded_input->SetTotalBytesLimit(671088640, 167108860);
 
-  model.ParseFromCodedStream(coded_input);
+    model.ParseFromCodedStream(coded_input);
 
-  close(fd);
+    close(fd);
+    fstream f(input_path, ios::in | ios::binary);
+    input.ParseFromIstream(&f);
 }
 
-void parse_input(TensorProto &input, string input_path) {
-  fstream f(input_path, ios::in | ios::binary);
-  input.ParseFromIstream(&f);
+ModelCtx model_init(cudnnHandle_t *handle_ptr, cublasHandle_t *cublasHandle_ptr, string model_path, string input_path, string input_name, int max_blocks) {
+    ModelCtx return_ctx;
+    ModelProto model;
+    TensorProto input;
+    load_model(model, input, model_path, input_path);
+
+    // Step 1, malloc all data
+    shared_ptr <MemoryManager> mm = make_shared<MemoryManager>();
+    shared_ptr <unordered_map<string, ValueInfoProto>> shape_map = traverse_shapes(model.graph());
+
+    for (auto name_to_val : *shape_map) {
+        mm->register_placeholder(name_to_val.second);
+    }
+
+    // Step 2, fill in the placeholder
+    for (auto tensor : model.graph().initializer()) {
+        mm->register_tensor(tensor);
+    }
+
+    if (input_name.length() == 0) {
+        mm->register_tensor(input);
+    } else {
+        mm->register_tensor(input, input_name);
+    }
+
+    // Step 3, construct logical DAG
+    return_ctx.ops = make_shared < vector < LogicalOperator >> ();
+    for (auto n : model.graph().node()) {
+        return_ctx.ops->emplace_back(n, shape_map);
+    }
+
+    // Step 4, realize operators
+    return_ctx.physical_ops = make_shared < vector < shared_ptr < PhysicalOperator >> > ();
+    for (auto o : *return_ctx.ops) {
+        return_ctx.physical_ops->push_back(o.realize(max_blocks, handle_ptr, cublasHandle_ptr));
+    }
+
+    // Step 5, connect the graph
+    for (int i = 0; i < model.graph().node().size(); ++i) {
+        auto n = model.graph().node().Get(i);
+
+        return_ctx.physical_ops->at(i)->set_argument(INPUT,
+                                                     mm->get_device_ptr(n.input().Get(0)));
+
+        if (n.input().size() > 1) {
+            for (int j = 1; j < n.input().size(); ++j) {
+                // TODO(simon): make sure we can set multiple data ptr and not overrides
+                // then This is undefined for convs and pool
+                return_ctx.physical_ops->at(i)->set_argument(DATA, mm->get_device_ptr(n.input().Get(j)));
+            }
+        }
+
+        return_ctx.physical_ops->at(i)->set_argument(OUTPUT, mm->get_device_ptr(n.output().Get(0)));
+    }
+    return return_ctx;
 }
 
 int main(int argc, char *argv[]) {
-  GOOGLE_PROTOBUF_VERIFY_VERSION;
+    GOOGLE_PROTOBUF_VERIFY_VERSION;
 
-  cxxopts::Options options("fijit-sys", "FIJIT Inference Engine");
-  options.positional_help("[optional args]").show_positional_help();
-  options.add_options()("m,model", "Path to the model ONNX file",
-                        cxxopts::value<string>())(
-      "i,input", "Path to the input ONNX file", cxxopts::value<string>())(
-      "max-block", "Max block for TVM ops",
-      cxxopts::value<int>())("input-name", "Override input tensor name",
-                             cxxopts::value<string>())("h, help", "Print help");
-  auto result = options.parse(argc, argv);
+    cxxopts::Options options("fijit-sys", "FIJIT Inference Engine");
+    options.positional_help("[optional args]").show_positional_help();
+    options.add_options()("m,model", "Path to the model ONNX file",cxxopts::value<string>())
+        ("i,input", "Path to the input ONNX file", cxxopts::value<string>())
+        ("max-block", "Max block for TVM ops", cxxopts::value<int>())
+        ("input-name", "Override input tensor name", cxxopts::value<string>())("h, help", "Print help");
+    auto result = options.parse(argc, argv);
 
-  if (result.count("help")) {
-    std::cout << options.help({"", "Group"}) << std::endl;
-    exit(0);
-  }
-
-  const char *model_path = result["model"].as<string>().c_str();
-  string input_path = result["input"].as<string>();
-  int max_block = result["max-block"].as<int>();
-
-  ModelProto model;
-  parse_model(model, model_path);
-
-  TensorProto input;
-  parse_input(input, input_path);
-
-  cuda_init();
-  cudnnHandle_t handle;
-  cudnnCreate(&handle);
-  cublasHandle_t cublasHandle;
-  cublasCreate(&cublasHandle);
-
-  // Step 1, malloc all data
-  shared_ptr<MemoryManager> mm = make_shared<MemoryManager>();
-
-  shared_ptr<unordered_map<string, ValueInfoProto>> shape_map =
-      traverse_shapes(model.graph());
-
-  for (auto name_to_val : *shape_map) {
-    mm->register_placeholder(name_to_val.second);
-  }
-
-  // Step 2, fill in the placeholder
-  for (auto tensor : model.graph().initializer()) {
-    mm->register_tensor(tensor);
-  }
-
-  if (result.count("input-name")) {
-    mm->register_tensor(input, result["input-name"].as<string>());
-  } else {
-    mm->register_tensor(input);
-  }
-
-  // Step 3, construct logical DAG
-  shared_ptr<vector<LogicalOperator>> ops =
-      make_shared<vector<LogicalOperator>>();
-  for (auto n : model.graph().node()) {
-    ops->emplace_back(n, shape_map);
-  }
-
-  // Step 4, realize operators
-  shared_ptr<vector<shared_ptr<PhysicalOperator>>> physical_ops =
-      make_shared<vector<shared_ptr<PhysicalOperator>>>();
-  for (auto o : *ops) {
-    physical_ops->push_back(o.realize(max_block, &handle, &cublasHandle));
-  }
-
-  // Step 5, connect the graph
-  for (int i = 0; i < model.graph().node().size(); ++i) {
-    auto n = model.graph().node().Get(i);
-
-    physical_ops->at(i)->set_argument(INPUT,
-                                      mm->get_device_ptr(n.input().Get(0)));
-
-    if (n.input().size() > 1) {
-      for (int j = 1; j < n.input().size(); ++j) {
-        // TODO(simon): make sure we can set multiple data ptr and not overrides
-        // then This is undefined for convs and pool
-        physical_ops->at(i)->set_argument(DATA,
-                                          mm->get_device_ptr(n.input().Get(j)));
-      }
+    if (result.count("help")) {
+        std::cout << options.help({"", "Group"}) << std::endl;
+        exit(0);
     }
 
-    physical_ops->at(i)->set_argument(OUTPUT,
-                                      mm->get_device_ptr(n.output().Get(0)));
-  }
+    int max_blocks = result["max-block"].as<int>();
+    string model_path = result["model"].as<string>();
+    string input_path = result["input"].as<string>();
+    string input_name;
+    if (result.count("input-name")) {
+        input_name = result["input-name"].as<string>();
+    } else {
+        input_name = "";
+    }
 
-  // Step 6, start dispatch
-  cudaStream_t s;
-  cudaStreamCreate(&s);
-  cudaEvent_t start_of_world;
-  cudaEventCreate(&start_of_world);
-  cudaEventRecord(start_of_world, s);
+    const int ntrials = 16;
 
-  shared_ptr<vector<vector<cudaEvent_t>>> events_collection =
-      make_shared<vector<vector<cudaEvent_t>>>(0);
-  for (auto &op : *physical_ops) {
-    vector<cudaEvent_t> events = op->dispatch(s);
-    events_collection->push_back(events);
-  }
+    for (int const& qps : {10, 20, 40, 80, 100, 200}) {
+        cuda_init();
+        cudnnHandle_t handle;
+        cudnnCreate(&handle);
+        cublasHandle_t cublasHandle;
+        cublasCreate(&cublasHandle);
 
-  CHECK_CUDA(cudaEventSynchronize(
-      events_collection->at(events_collection->size() - 1)[1]));
-  CHECK_CUDA(cudaDeviceSynchronize());
+        ModelCtx ctx = model_init(&handle, &cublasHandle, model_path, input_path, input_name, max_blocks);
 
-  // Step 7: Printout chrome://tracing data
-  ChromeTraceReporter reporter_1(ops, physical_ops, events_collection,
-                                 start_of_world);
-  TotalTimeReporter reporter_2(ops, physical_ops, events_collection,
-                               start_of_world);
+        cudaStream_t s;
+        cudaStreamCreate(&s);
+        cudaEvent_t start_of_world;
+        cudaEventCreate(&start_of_world);
+        cudaEventRecord(start_of_world, s);
 
-  std::cout << reporter_1.report() << std::endl;
-  std::cout << reporter_2.report() << std::endl;
+        auto events_collection = make_shared<vector<vector<cudaEvent_t>>>(0);
+
+        for (int i = 0; i < ntrials; i++) {
+            for (auto &op : *ctx.physical_ops) {
+                events_collection->push_back(op->dispatch(s));
+            }
+            CHECK_CUDA(cudaEventSynchronize(events_collection->at(events_collection->size() - 1)[1]));
+            CHECK_CUDA(cudaDeviceSynchronize());
+            std::this_thread::sleep_for(std::chrono::milliseconds(1000 / qps));
+        }
+
+        for (int i = 0; i < ntrials; i++) {
+            for (auto &op : *ctx.physical_ops) {
+                events_collection->push_back(op->dispatch(s));
+            }
+        }
+
+        CHECK_CUDA(cudaEventSynchronize(events_collection->at(events_collection->size() - 1)[1]));
+        CHECK_CUDA(cudaDeviceSynchronize());
+
+        // ChromeTraceReporter reporter_1(ctx.ops, ctx.physical_ops, events_collection, start_of_world);
+        TotalTimeReporter reporter_2(ctx.ops, ctx.physical_ops, events_collection, start_of_world);
+        //std::cout << reporter_1.report() << std::endl;
+        std::cout << "QPS[" << qps << "] " << reporter_2.report() << std::endl;
+
+        cudnnDestroy(handle);
+        cublasDestroy(cublasHandle);
+    }
 }
