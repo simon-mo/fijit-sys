@@ -15,28 +15,42 @@ using namespace moodycamel;
 
 class Scheduler {
 public:
-  shared_ptr<ConcurrentQueue<PhysicalOperator>>
-  register_model_queue(string model_name,
-                       shared_ptr<ConcurrentQueue<LogicalOperator>> q);
+  shared_ptr<ConcurrentQueue<shared_ptr<PhysicalOperator>>>
+  register_model_queue(
+      string model_name,
+      shared_ptr<ConcurrentQueue<shared_ptr<LogicalOperator>>> q);
 
   void register_total_resource(shared_ptr<int> total_resource_estimate);
 
   virtual void schedule() = 0;
 
-private:
-  unordered_map<string, shared_ptr<ConcurrentQueue<LogicalOperator>>>
+  void start();
+
+  void stop();
+
+protected:
+  bool shouldStop = false;
+
+  unordered_map<string,
+                shared_ptr<ConcurrentQueue<shared_ptr<LogicalOperator>>>>
       logical_op_queues;
-  unordered_map<string, shared_ptr<ConcurrentQueue<LogicalOperator>>>
+  unordered_map<string,
+                shared_ptr<ConcurrentQueue<shared_ptr<PhysicalOperator>>>>
       physical_op_queues;
-  shared_ptr<int> total_resource;
+
+  shared_ptr<int> total_resource = make_shared<int>(80);
 };
 
 class StaticScheduler : public Scheduler {
 public:
-  StaticScheduler(int max_blocks_per_model);
+  StaticScheduler(int max_blocks_per_model, cudnnHandle_t *handle,
+                  cublasHandle_t *cublasHandle);
+  void schedule() override;
 
 private:
   int max_blocks;
+  cudnnHandle_t *handle;
+  cublasHandle_t *cublasHandle;
 };
 
 #endif // FIJIT_SYS_SCHEDULER_H

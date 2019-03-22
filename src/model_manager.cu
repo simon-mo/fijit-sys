@@ -27,7 +27,7 @@ void ModelManager::register_model(ModelProto model_proto, string model_name) {
   }
 }
 
-vector<shared_ptr<LogicalOperator>>
+shared_ptr<vector<shared_ptr<LogicalOperator>>>
 ModelManager::instantiate_model(string model_name, int query_id) {
   assert(storage.find(model_name) != storage.end());
 
@@ -78,7 +78,7 @@ ModelManager::instantiate_model(string model_name, int query_id) {
     op_queue.push_back(op);
   }
 
-  return op_queue;
+  return make_shared<decltype(op_queue)>(op_queue);
 }
 
 void ModelManager::register_input(string model_name, int query_id,

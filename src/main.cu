@@ -8,10 +8,12 @@
 #include "onnx_helper.h"
 #include "operators.h"
 #include "proto/onnx.pb.h"
+#include "scheduler.h"
 #include <fstream>
 #include <iostream>
 #include <map>
 #include <string>
+#include <thread>
 
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -103,10 +105,17 @@ int main(int argc, char *argv[]) {
   string model_name = "default-model";
   model_manager->register_model(model, model_name);
 
+  shared_ptr<ConcurrentQueue<shared_ptr<LogicalOperator>>> model_queue;
+
+  auto scheduler = StaticScheduler(max_block, &handle, &cublasHandle);
+  shared_ptr<ConcurrentQueue<shared_ptr<PhysicalOperator>>> dispatch_queue =
+      scheduler.register_model_queue(model_name, model_queue);
+  thread scheduler_thread([&]() { scheduler.start(); });
+
   auto generate_query = [&](int query_id) {
-    vector<shared_ptr<LogicalOperator>> logical_ops =
+    shared_ptr<vector<shared_ptr<LogicalOperator>>> ops =
         model_manager->instantiate_model(model_name, query_id);
-    auto ops = make_shared<decltype(logical_ops)>(move(logical_ops));
+
     model_manager->register_input(model_name, query_id, input, input_name);
 
     // Step 4, realize operators

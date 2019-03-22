@@ -24,7 +24,8 @@ public:
 
   void register_model(ModelProto, string);
 
-  vector<shared_ptr<LogicalOperator>> instantiate_model(string, int);
+  shared_ptr<vector<shared_ptr<LogicalOperator>>> instantiate_model(string,
+                                                                    int);
 
   void register_input(string, int, TensorProto &);
   void register_input(string, int, TensorProto &, string);
