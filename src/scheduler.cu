@@ -2,9 +2,9 @@
 // Created by Simon Mo on 2019-03-21.
 //
 
-#include "scheduler.h"
-
+#include "common_cuda.h"
 #include "concurrentqueue/concurrentqueue.h"
+#include "scheduler.h"
 
 #include <chrono>
 #include <iostream>
@@ -21,6 +21,7 @@ Scheduler::register_model_queue(
 
   shared_ptr<ConcurrentQueue<shared_ptr<PhysicalOperator>>> ops_q =
       make_shared<ConcurrentQueue<shared_ptr<PhysicalOperator>>>();
+
   physical_op_queues.insert({model_name, ops_q});
 
   return ops_q;
@@ -33,7 +34,9 @@ void Scheduler::register_total_resource(
 
 void Scheduler::stop() { shouldStop = true; }
 
-void Scheduler::start() {
+void StaticScheduler::start() {
+  CHECK_CUDEVICE(cuCtxSetCurrent(*ctx));
+
   while (true) {
     if (shouldStop) {
       break;
@@ -43,14 +46,14 @@ void Scheduler::start() {
   }
 }
 
-StaticScheduler::StaticScheduler(int max_blocks_per_model,
-                                 cudnnHandle_t *handle,
-                                 cublasHandle_t *cublasHandle)
-    : handle(handle), cublasHandle(cublasHandle) {
-  max_blocks = max_blocks_per_model;
-}
+StaticScheduler::StaticScheduler(int max_blocks_per_model, CUcontext *ctx,
+                                 cudnnHandle_t *handle_,
+                                 cublasHandle_t *cublasHandle_)
+    : max_blocks(max_blocks_per_model), ctx(ctx), handle(handle_),
+      cublasHandle(cublasHandle_) {}
 
 void StaticScheduler::schedule() {
+
   auto num_models = logical_op_queues.size();
 
   if (num_models * max_blocks > *total_resource) {
@@ -67,6 +70,8 @@ void StaticScheduler::schedule() {
 
     shared_ptr<ConcurrentQueue<shared_ptr<LogicalOperator>>> op_queue =
         entry.second;
+
+    cerr << model_name << " queue size " << op_queue->size_approx() << endl;
 
     shared_ptr<LogicalOperator> op;
     while (op_queue->try_dequeue(op)) {

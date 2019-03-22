@@ -24,7 +24,7 @@ public:
 
   virtual void schedule() = 0;
 
-  void start();
+  virtual void start() = 0;
 
   void stop();
 
@@ -43,14 +43,16 @@ protected:
 
 class StaticScheduler : public Scheduler {
 public:
-  StaticScheduler(int max_blocks_per_model, cudnnHandle_t *handle,
-                  cublasHandle_t *cublasHandle);
+  StaticScheduler(int max_blocks_per_model, CUcontext *ctx,
+                  cudnnHandle_t *handle, cublasHandle_t *cublasHandle);
   void schedule() override;
+  void start() override;
 
 private:
   int max_blocks;
   cudnnHandle_t *handle;
   cublasHandle_t *cublasHandle;
+  CUcontext *ctx;
 };
 
 #endif // FIJIT_SYS_SCHEDULER_H

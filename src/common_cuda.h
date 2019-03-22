@@ -58,6 +58,6 @@
 
 #define CUDevicePtrCast(expression) (void *)(uintptr_t)(expression)
 
-void cuda_init(void);
+CUcontext cuda_init(void);
 
 #endif // FIJIT_SYS_COMMON_CUH_H

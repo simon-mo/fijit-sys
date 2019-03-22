@@ -6,10 +6,11 @@
 
 using namespace std;
 
-void cuda_init() {
+CUcontext cuda_init() {
   CUdevice cuDevice;
   CUcontext cuContext;
   CHECK_CUDEVICE(cuInit(0));
   CHECK_CUDEVICE(cuDeviceGet(&cuDevice, 0));
   CHECK_CUDEVICE(cuCtxCreate(&cuContext, 0, cuDevice));
+  return cuContext;
 }

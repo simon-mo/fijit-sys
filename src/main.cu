@@ -91,7 +91,7 @@ int main(int argc, char *argv[]) {
   TensorProto input;
   parse_input(input, input_path);
 
-  cuda_init();
+  CUcontext cudaCtx = cuda_init();
   cudnnHandle_t handle;
   cublasHandle_t cublasHandle;
 
@@ -105,11 +105,12 @@ int main(int argc, char *argv[]) {
   string model_name = "default-model";
   model_manager->register_model(model, model_name);
 
-  shared_ptr<ConcurrentQueue<shared_ptr<LogicalOperator>>> model_queue;
+  shared_ptr<ConcurrentQueue<shared_ptr<LogicalOperator>>> scheduler_queue =
+      make_shared<ConcurrentQueue<shared_ptr<LogicalOperator>>>();
 
-  auto scheduler = StaticScheduler(max_block, &handle, &cublasHandle);
+  auto scheduler = StaticScheduler(max_block, &cudaCtx, &handle, &cublasHandle);
   shared_ptr<ConcurrentQueue<shared_ptr<PhysicalOperator>>> dispatch_queue =
-      scheduler.register_model_queue(model_name, model_queue);
+      scheduler.register_model_queue(model_name, scheduler_queue);
   thread scheduler_thread([&]() { scheduler.start(); });
 
   auto generate_query = [&](int query_id) {
@@ -118,11 +119,38 @@ int main(int argc, char *argv[]) {
 
     model_manager->register_input(model_name, query_id, input, input_name);
 
+    for (auto o : *ops) {
+      ;
+      bool enqueue_result = scheduler_queue->enqueue(o);
+      if (!enqueue_result) {
+        cerr << "enqueued failed" << endl;
+      }
+    }
+
+    this_thread::sleep_for(std::chrono::milliseconds(150));
+
     // Step 4, realize operators
     shared_ptr<vector<shared_ptr<PhysicalOperator>>> physical_ops =
         make_shared<vector<shared_ptr<PhysicalOperator>>>();
-    for (auto o : *ops) {
-      physical_ops->push_back(o->realize(max_block, &handle, &cublasHandle));
+
+    //    for (auto o : *ops) {
+    //      physical_ops->push_back(o->realize(max_block, &handle,
+    //      &cublasHandle));
+    //    }
+
+    cerr << "Dispatching size " << dispatch_queue->size_approx() << endl;
+
+    for (int i = 0; i < ops->size(); ++i) {
+      shared_ptr<PhysicalOperator> op;
+      bool deque_result = dispatch_queue->try_dequeue(op);
+      if (!deque_result) {
+        cerr << "can't deque operators, current physical ops size "
+             << physical_ops->size() << " current dispatching size "
+             << dispatch_queue->size_approx() << endl;
+        this_thread::sleep_for(std::chrono::milliseconds(150));
+      } else {
+        physical_ops->push_back(op);
+      }
     }
 
     shared_ptr<vector<vector<cudaEvent_t>>> events_collection =
@@ -184,6 +212,8 @@ int main(int argc, char *argv[]) {
     std::cout << reporter_2.report() << std::endl;
   }
 
+  scheduler.stop();
+  scheduler_thread.join();
   // Step 7: Printout chrome://tracing data
   //  ChromeTraceReporter reporter_1(ops, physical_ops, events_collection,
   //                                 start_of_world);
