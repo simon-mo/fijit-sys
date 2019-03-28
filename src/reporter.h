@@ -59,4 +59,17 @@ public:
   string report() override;
 };
 
+class ModelTimeReporter : public AbstractReporter {
+public:
+    ModelTimeReporter(
+            shared_ptr<vector<LogicalOperator>> logical_ops,
+            shared_ptr<vector<shared_ptr<PhysicalOperator>>> physical_ops,
+    shared_ptr<vector<vector<cudaEvent_t>>> events_collection,
+    cudaEvent_t start_of_the_world)
+    : AbstractReporter(logical_ops, physical_ops, events_collection,
+            start_of_the_world){};
+
+    string report() override;
+};
+
 #endif // FIJIT_SYS_REPORTER_H
