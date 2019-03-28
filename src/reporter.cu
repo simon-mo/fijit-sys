@@ -8,9 +8,11 @@
 using namespace std;
 using namespace rapidjson;
 
-string ChromeTraceReporter::report() { return report(1); }
+string ChromeTraceReporter::report() { return report(1, 1); }
 
-string ChromeTraceReporter::report(int tid) {
+string ChromeTraceReporter::report(int tid) { return report(1, tid); }
+
+string ChromeTraceReporter::report(int pid, int tid) {
   /*
    *   //  [
   //  { "pid":1, "tid":1, "ts":87705, "dur":956189, "ph":"X", "name":"Jambase",
@@ -27,7 +29,6 @@ string ChromeTraceReporter::report(int tid) {
   document.SetArray();
 
   for (int k = 0; k < physical_ops->size(); ++k) {
-
     float duration, start_time;
     cudaEvent_t start = events_collection->at(k)[0];
     cudaEvent_t end = events_collection->at(k)[1];
@@ -43,7 +44,7 @@ string ChromeTraceReporter::report(int tid) {
                    allocator);
 
     Value item(kObjectType);
-    item.AddMember("pid", Value(1), allocator);
+    item.AddMember("pid", Value(pid), allocator);
     item.AddMember("tid", Value(tid), allocator);
     item.AddMember("ts", start_time, allocator);
     item.AddMember("dur", duration, allocator);

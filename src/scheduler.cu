@@ -27,8 +27,7 @@ Scheduler::register_model_queue(
   return ops_q;
 }
 
-void Scheduler::register_total_resource(
-    shared_ptr<int> total_resource_estimate) {
+void Scheduler::register_total_resource(shared_ptr<int> total_resource_estimate) {
   total_resource = total_resource_estimate;
 }
 
@@ -47,19 +46,14 @@ void StaticScheduler::start() {
 }
 
 StaticScheduler::StaticScheduler(int max_blocks_per_model, CUcontext *ctx,
-                                 cudnnHandle_t *handle_,
-                                 cublasHandle_t *cublasHandle_)
-    : max_blocks(max_blocks_per_model), ctx(ctx), handle(handle_),
-      cublasHandle(cublasHandle_) {}
+                                 cudnnHandle_t *handle_, cublasHandle_t *cublasHandle_)
+    : max_blocks(max_blocks_per_model), ctx(ctx), handle(handle_), cublasHandle(cublasHandle_) {}
 
 void StaticScheduler::schedule() {
-
   auto num_models = logical_op_queues.size();
 
   if (num_models * max_blocks > *total_resource) {
-    cerr << "StaticScheduler::schedule allocated resource exceeds current "
-            "total resource, skipping..."
-         << endl;
+    cerr << "StaticScheduler::schedule allocated resource exceeds current total resource, skipping..." << endl;
     return;
   }
 

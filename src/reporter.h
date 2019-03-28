@@ -45,6 +45,7 @@ public:
 
   string report();
   string report(int tid);
+  string report(int pid, int tid);
 };
 
 class TotalTimeReporter : public AbstractReporter {

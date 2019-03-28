@@ -105,22 +105,16 @@ int main(int argc, char *argv[]) {
   string model_name = "default-model";
   model_manager->register_model(model, model_name);
 
-  shared_ptr<ConcurrentQueue<shared_ptr<LogicalOperator>>> scheduler_queue =
-      make_shared<ConcurrentQueue<shared_ptr<LogicalOperator>>>();
-
+  auto scheduler_queue = make_shared<ConcurrentQueue<shared_ptr<LogicalOperator>>>();
   auto scheduler = StaticScheduler(max_block, &cudaCtx, &handle, &cublasHandle);
-  shared_ptr<ConcurrentQueue<shared_ptr<PhysicalOperator>>> dispatch_queue =
-      scheduler.register_model_queue(model_name, scheduler_queue);
+  auto dispatch_queue = scheduler.register_model_queue(model_name, scheduler_queue);
   thread scheduler_thread([&]() { scheduler.start(); });
 
   auto generate_query = [&](int query_id) {
-    shared_ptr<vector<shared_ptr<LogicalOperator>>> ops =
-        model_manager->instantiate_model(model_name, query_id);
-
+    auto ops = model_manager->instantiate_model(model_name, query_id);
     model_manager->register_input(model_name, query_id, input, input_name);
 
     for (auto o : *ops) {
-      ;
       bool enqueue_result = scheduler_queue->enqueue(o);
       if (!enqueue_result) {
         cerr << "enqueued failed" << endl;
@@ -130,14 +124,7 @@ int main(int argc, char *argv[]) {
     this_thread::sleep_for(std::chrono::milliseconds(150));
 
     // Step 4, realize operators
-    shared_ptr<vector<shared_ptr<PhysicalOperator>>> physical_ops =
-        make_shared<vector<shared_ptr<PhysicalOperator>>>();
-
-    //    for (auto o : *ops) {
-    //      physical_ops->push_back(o->realize(max_block, &handle,
-    //      &cublasHandle));
-    //    }
-
+    auto physical_ops = make_shared<vector<shared_ptr<PhysicalOperator>>>();
     cerr << "Dispatching size " << dispatch_queue->size_approx() << endl;
 
     for (int i = 0; i < ops->size(); ++i) {
@@ -153,8 +140,7 @@ int main(int argc, char *argv[]) {
       }
     }
 
-    shared_ptr<vector<vector<cudaEvent_t>>> events_collection =
-        make_shared<vector<vector<cudaEvent_t>>>(0);
+    auto events_collection = make_shared<vector<vector<cudaEvent_t>>>(0);
 
     QueryContext ctx{.logical_ops = ops,
                      .physical_ops = physical_ops,
@@ -179,7 +165,7 @@ int main(int argc, char *argv[]) {
   for (int k = 0; k < num_stream; ++k) {
     cudaStream_t s;
     CHECK_CUDA(cudaStreamCreate(&s));
-    //    CHECK_CUDA(cudaStreamWaitEvent(s,start_of_world, 0))
+    // CHECK_CUDA(cudaStreamWaitEvent(s, start_of_world, 0))
     streams.push_back(s);
   }
 
@@ -191,32 +177,39 @@ int main(int argc, char *argv[]) {
 
       QueryContext ctx = dispatches.at(make_tuple(l, i));
       for (int k = 0; k < ctx.physical_ops->size(); ++k) {
-        ctx.events_collection->emplace_back(
-            ctx.physical_ops->at(k)->dispatch(s));
+        ctx.events_collection->emplace_back(ctx.physical_ops->at(k)->dispatch(s));
       }
     }
   }
 
   CHECK_CUDA(cudaDeviceSynchronize());
 
+
+  ofstream trace;
+  trace.open("out_trace.json");
+  trace << "[";
   for (int m = 0; m < num_stream; ++m) {
-    QueryContext ctx = dispatches.at(make_tuple(num_query - 1, m));
-    TotalTimeReporter reporter_2(ctx.logical_ops, ctx.physical_ops,
-                                 ctx.events_collection, start_of_world);
+    for (int q = 0; q < num_query; ++q) {
+      QueryContext ctx = dispatches.at(make_tuple(q, m));
+      TotalTimeReporter reporter_2(ctx.logical_ops, ctx.physical_ops, ctx.events_collection, start_of_world);
 
-    float start;
-    cudaEventElapsedTime(&start, start_of_world,
-                         ctx.events_collection->at(0)[0]);
-    std::cout << start << std::endl;
+      float start;
+      cudaEventElapsedTime(&start, start_of_world, ctx.events_collection->at(0)[0]);
+      std::cout << start << std::endl;
+      std::cout << reporter_2.report() << std::endl;
 
-    std::cout << reporter_2.report() << std::endl;
+      ChromeTraceReporter reporter_1(ctx.logical_ops, ctx.physical_ops, ctx.events_collection, start_of_world);
+      string trace_report = reporter_1.report(m, q);
+      trace_report = trace_report.substr(1, trace_report.size() - 2);
+      trace << trace_report << std::endl;
+      if (q < num_query - 1 || m < num_stream - 1) {
+        trace << ", ";
+      }
+    }
   }
 
+  trace << "]";
+  trace.close();
   scheduler.stop();
   scheduler_thread.join();
-  // Step 7: Printout chrome://tracing data
-  //  ChromeTraceReporter reporter_1(ops, physical_ops, events_collection,
-  //                                 start_of_world);
-
-  //  std::cout << reporter_1.report(1) << std::endl;
 }

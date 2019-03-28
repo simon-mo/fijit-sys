@@ -31,13 +31,8 @@ public:
 protected:
   bool shouldStop = false;
 
-  unordered_map<string,
-                shared_ptr<ConcurrentQueue<shared_ptr<LogicalOperator>>>>
-      logical_op_queues;
-  unordered_map<string,
-                shared_ptr<ConcurrentQueue<shared_ptr<PhysicalOperator>>>>
-      physical_op_queues;
-
+  unordered_map<string, shared_ptr<ConcurrentQueue<shared_ptr<LogicalOperator>>>> logical_op_queues;
+  unordered_map<string, shared_ptr<ConcurrentQueue<shared_ptr<PhysicalOperator>>>> physical_op_queues;
   shared_ptr<int> total_resource = make_shared<int>(80);
 };
 
