@@ -19,18 +19,6 @@ add_subdirectory(third_party/rapidjson)
 add_subdirectory(third_party/fmt)
 add_subdirectory(proto)
 
-## Our Main Executable is fijit-sys binary
-add_executable(
-        ${PROJECT_NAME}
-        src/main.cu
-        src/abstract_operators.h
-        third_party/cxxopts/cxxopts.hpp
-)
-
-target_link_libraries(${PROJECT_NAME}
-        proto ${PROTOBUF_LIBRARY}
-        )
-
 
 ## CPU Only Libraries
 add_library(fijit-lib SHARED
@@ -40,17 +28,15 @@ add_library(fijit-lib SHARED
         src/onnx_helper.h
         src/onnx_helper.cc)
 target_link_libraries(fijit-lib redox)
-target_link_libraries(${PROJECT_NAME} fijit-lib)
 target_compile_features(fijit-lib PUBLIC cxx_std_14)
 set_target_properties(fijit-lib PROPERTIES LINKER_LANGUAGE CXX)
 
 
 ## GPU Only Libraries
-add_library(
-        cuda_common STATIC
+add_library(cuda_common STATIC
         src/common_cuda.cc
-        src/common_cuda.h
-        )
+        src/common_cuda.h)
+
 add_library(cuda_lib STATIC
         src/common.h
         src/operators.h
@@ -58,10 +44,8 @@ add_library(cuda_lib STATIC
         src/memory_manager.h
         src/memory_manager.cu
         src/kernel_db.h
-
         src/cudnn_wrapper.cu
         src/cudnn_wrapper.h
-
         src/onnx_helper.h
         src/abstract_operators.h
         src/cublas_wrapper.h
@@ -70,13 +54,10 @@ add_library(cuda_lib STATIC
         src/reporter.cu
         src/model_manager.h
         src/model_manager.cu
-
         src/scheduler.cu
         src/scheduler.h
-
         third_party/concurrentqueue/blockingconcurrentqueue.h
-        third_party/concurrentqueue/concurrentqueue.h
-        )
+        third_party/concurrentqueue/concurrentqueue.h)
 
 target_link_libraries(cuda_lib
         cuda_common
@@ -84,11 +65,30 @@ target_link_libraries(cuda_lib
         CUDA::cudart CUDA::cuda CUDA::cudnn CUDA::cublas
         fijit-lib
         fmt::fmt
-        rapidjson
-        )
-target_link_libraries(${PROJECT_NAME} cuda_lib cuda_common)
+        rapidjson)
+
 target_compile_features(cuda_lib PUBLIC cxx_std_14)
 set_target_properties(cuda_lib PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 
 
+## fijit-sys benchmark
+add_executable(${PROJECT_NAME}
+        src/main.cu
+        src/abstract_operators.h
+        third_party/cxxopts/cxxopts.hpp
+)
 
+target_link_libraries(${PROJECT_NAME} proto ${PROTOBUF_LIBRARY})
+target_link_libraries(${PROJECT_NAME} fijit-lib)
+target_link_libraries(${PROJECT_NAME} cuda_lib cuda_common)
+
+## throughput qps_bench benchmark
+add_executable(qps_bench
+        src/qps_bench.cu
+        src/abstract_operators.h
+        third_party/cxxopts/cxxopts.hpp
+)
+
+target_link_libraries(qps_bench proto ${PROTOBUF_LIBRARY})
+target_link_libraries(qps_bench fijit-lib)
+target_link_libraries(qps_bench cuda_lib cuda_common)
