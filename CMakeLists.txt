@@ -19,6 +19,7 @@ add_subdirectory(third_party/rapidjson)
 add_subdirectory(third_party/fmt)
 add_subdirectory(proto)
 
+
 ## Our Main Executable is fijit-sys binary
 add_executable(
         ${PROJECT_NAME}
@@ -76,6 +77,10 @@ add_library(cuda_lib STATIC
 
         third_party/concurrentqueue/blockingconcurrentqueue.h
         third_party/concurrentqueue/concurrentqueue.h
+        src/executor.h
+        src/executor.cu
+        src/events.h
+        src/events.cu
         )
 
 target_link_libraries(cuda_lib

@@ -86,8 +86,7 @@ vector<KERNEL_ARG> KernelDB::get_kernel_args(string &op) {
         return INPUT;
       if (arg == "OUTPUT")
         return OUTPUT;
-      if (arg == "DATA")
-        return DATA;
+      else return DATA;
     }(arg));
   }
   return k_args;
