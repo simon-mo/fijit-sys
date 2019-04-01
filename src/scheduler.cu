@@ -3,7 +3,6 @@
 //
 
 #include "common_cuda.h"
-#include "concurrentqueue/concurrentqueue.h"
 #include "scheduler.h"
 
 #include <chrono>

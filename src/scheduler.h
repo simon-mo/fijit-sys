@@ -6,9 +6,7 @@
 #define FIJIT_SYS_SCHEDULER_H
 
 #include "model_manager.h"
-
 #include "concurrentqueue/concurrentqueue.h"
-
 #include <unordered_map>
 
 using namespace moodycamel;
