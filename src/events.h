@@ -20,18 +20,18 @@ struct EventEntry {
 };
 
 class EventRegistrar {
- public:
-  void insert(string model_name, int queue_id, cudaEvent_t start, cudaEvent_t end) {
+public:
+  void insert(string model_name, int queue_id, cudaEvent_t start,
+              cudaEvent_t end) {
     EventEntry v = {.model_name = model_name, .queue_id = queue_id, start, end};
     data.push_back(v);
   }
 
-  void insert(string model_name, int queue_id,  vector<cudaEvent_t> events) {
+  void insert(string model_name, int queue_id, vector<cudaEvent_t> events) {
     insert(model_name, queue_id, events[0], events[1]);
   }
 
-
- private:
+private:
   list<EventEntry> data;
 };
 
@@ -44,4 +44,4 @@ shared_ptr<EventRegistrar> get_gobal_event_registrar() {
   return global_event_registrar;
 }
 
-#endif //FIJIT_SYS_EVENTS_H
+#endif // FIJIT_SYS_EVENTS_H
