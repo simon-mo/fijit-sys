@@ -71,8 +71,6 @@ void StaticScheduler::schedule() {
     shared_ptr<ConcurrentQueue<shared_ptr<LogicalOperator>>> op_queue =
         entry.second;
 
-    cerr << model_name << " queue size " << op_queue->size_approx() << endl;
-
     shared_ptr<LogicalOperator> op;
     while (op_queue->try_dequeue(op)) {
       shared_ptr<PhysicalOperator> physical_op =
