@@ -57,18 +57,15 @@ struct QueryContext {
 
 class QPSBench {
 public:
-    int max_block_;
     string input_name_;
-    int num_query_;
     int num_stream_;
     const string model_name_ = "default-model";
     map<int, shared_ptr<vector<shared_ptr<LogicalOperator>>>> ctx_map_;
+    map<int, shared_ptr<vector<shared_ptr<PhysicalOperator>>>> ctx_physical_map_;
 
     QPSBench(const char *model_path, string input_path, int max_block,
-             string input_name, int num_query, int num_stream) {
-        max_block_ = max_block;
+             string input_name, int num_stream) {
         input_name_ = input_name;
-        num_query_ = num_query;
         num_stream_ = num_stream;
 
         // CUDA init
@@ -85,53 +82,38 @@ public:
         model_manager_->register_model(model_, model_name_);
 
         // init scheduler
-        scheduler_queue_ = make_shared<ConcurrentQueue<shared_ptr<LogicalOperator>>>();
+        scheduler_queue_ = make_shared<BlockingConcurrentQueue<shared_ptr<LogicalOperator>>>();
         scheduler_ = make_shared<StaticScheduler>(max_block, &cudaCtx_, &handle_, &cublasHandle_);
         dispatch_queue_ = scheduler_->register_model_queue(model_name_, scheduler_queue_);
         scheduler_thread_ = thread([&]() { scheduler_->start(); });
     }
 
     QueryContext dispatch_query(int query_id) {
-        printf(" \t\t-> Computing query %d\n", query_id);
         const int stream_id = query_id % num_stream_;
         if (ctx_map_.find(stream_id) == ctx_map_.end()) {
-            printf(" \t\t\t-> Caching stream %d for query %d\n", stream_id, query_id);
             auto ops = model_manager_->instantiate_model(model_name_, stream_id);
+            model_manager_->register_input(model_name_, stream_id, input_, input_name_);
             ctx_map_.insert(make_pair(stream_id, ops));
         }
-        auto ops = ctx_map_.at(stream_id);
-        model_manager_->register_input(model_name_, query_id, input_, input_name_);
 
-        printf(" \t\t\t-> Enqueuing %lu operations\n", ops->size());
+        auto ops = ctx_map_.at(stream_id);
         for (auto o : *ops) {
-            while (!scheduler_queue_->enqueue(o)) {
-                cerr << "enqueued failed" << endl;
-            }
+            scheduler_queue_->enqueue(o);
         }
 
         auto physical_ops = make_shared<vector<shared_ptr<PhysicalOperator>>>();
-        // cerr << "Dispatching size " << dispatch_queue_->size_approx() << endl;
-        int profile_num_waits = 0;
-        int profile_num_ops = 0;
         for (int i = 0; i < ops->size(); ++i) {
             shared_ptr<PhysicalOperator> op;
-            while (!dispatch_queue_->try_dequeue(op)) {
-                //printf(" \t\t\t-> WAIT, processed %d ops\n", profile_num_ops);
-                // this_thread::sleep_for(std::chrono::milliseconds(500));
-                // cerr << "\tcan't deque operators, current physical ops size "
-                //     << physical_ops->size() << " but waiting now has dispatching size "
-                //     << dispatch_queue_->size_approx() << endl;
-                profile_num_waits++;
-            }
+            dispatch_queue_->wait_dequeue(op);
             physical_ops->push_back(op);
-            profile_num_ops++;
         }
-        printf(" \t\t\t-> Dequeued all physical operations with %d waits\n", profile_num_waits);
+        ctx_physical_map_.insert(make_pair(stream_id, physical_ops));
 
-        auto events_collection = make_shared<vector<vector<cudaEvent_t>>>(0);
-        QueryContext ctx{.logical_ops = ops,
-                .physical_ops = physical_ops,
-                .events_collection = events_collection};
+        QueryContext ctx{
+                .logical_ops = ctx_map_.at(stream_id),
+                .physical_ops = ctx_physical_map_.at(stream_id),
+                .events_collection = make_shared<vector<vector<cudaEvent_t>>>(0)
+        };
 
         return ctx;
     }
@@ -139,6 +121,9 @@ public:
     ~QPSBench() {
         scheduler_->stop();
         scheduler_thread_.join();
+        cudnnDestroy(handle_);
+        cublasDestroy(cublasHandle_);
+        cuCtxDestroy(cudaCtx_);
     }
 
 
@@ -153,8 +138,8 @@ private:
     shared_ptr<StaticScheduler> scheduler_;
     thread scheduler_thread_;
 
-    shared_ptr<ConcurrentQueue<shared_ptr<LogicalOperator>>> scheduler_queue_;
-    shared_ptr<ConcurrentQueue<shared_ptr<PhysicalOperator>>> dispatch_queue_;
+    shared_ptr<BlockingConcurrentQueue<shared_ptr<LogicalOperator>>> scheduler_queue_;
+    shared_ptr<BlockingConcurrentQueue<shared_ptr<PhysicalOperator>>> dispatch_queue_;
 };
 
 
@@ -169,9 +154,11 @@ int main(int argc, char *argv[]) {
             ("i,input", "Path to the input ONNX file", cxxopts::value<string>())
             ("max-block", "Max block for TVM ops", cxxopts::value<int>()->default_value("80"))
             ("input-name", "Override input tensor name", cxxopts::value<string>()->default_value("0"))
-
-            ("num-query", "Number of query per stream", cxxopts::value<int>()->default_value("1"))
             ("num-stream", "Number of stream", cxxopts::value<int>()->default_value("1"))
+
+            ("num-query-burst", "Number of query per stream (burst)", cxxopts::value<int>()->default_value("1"))
+            ("num-bursts", "Number of bursts", cxxopts::value<int>()->default_value("10"))
+            ("inter-burst-ms", "Number of bursts", cxxopts::value<int>()->default_value("100"))
 
             ("h, help", "Print help");
     // clang-format on
@@ -186,23 +173,23 @@ int main(int argc, char *argv[]) {
     const string input_path = result["input"].as<string>();
     const int max_block = result["max-block"].as<int>();
     const string input_name = result["input-name"].as<string>();
-    const int num_query = result["num-query"].as<int>();
     const int num_stream = result["num-stream"].as<int>();
 
-    QPSBench bench(model_path, input_path, max_block, input_name, num_query, num_stream);
-    map<tuple<int, int>, QueryContext> dispatches;
+    const int num_query_burst = result["num-query-burst"].as<int>();
+    const int num_bursts = result["num-bursts"].as<int>();
+    const int inter_burst_ms = result["inter-burst-ms"].as<int>();
+    const int num_query = num_query_burst * num_bursts;  // num queries per stream
 
-    printf(" -> Preloading kernels for constant resource allocations\n");
-    for (int i = 0; i < num_stream; ++i) {
-        for (int j = 0; j < num_query; ++j) {
-            QueryContext ctx = bench.dispatch_query(i);
-            tuple<int, int> id = make_tuple(j, i);
-            dispatches.insert({id, ctx});
-        }
-        printf(" \t-> Stream %d / %d preloading complete\n", i, num_stream);
+    QPSBench bench(model_path, input_path, max_block, input_name, num_stream);
+    map<int, QueryContext> dispatches;
+
+    // printf(" -> Preloading kernels for constant resource allocations\n");
+    for (int j = 0; j < num_query; ++j) {
+        QueryContext ctx = bench.dispatch_query(j);
+        dispatches.insert({j, ctx});
     }
 
-    printf(" -> Creating streams\n");
+    // printf(" -> Creating streams\n");
     vector<cudaStream_t> streams;
     for (int k = 0; k < num_stream; ++k) {
         cudaStream_t s;
@@ -210,41 +197,54 @@ int main(int argc, char *argv[]) {
         streams.push_back(s);
     }
 
-    printf(" -> Dispatching queries\n");
+    // printf(" -> Dispatching queries\n");
     cudaStream_t timing_stream;
     CHECK_CUDA(cudaStreamCreate(&timing_stream));
     for (int l = 0; l < num_query; ++l) {
-        for (int i = 0; i < num_stream; ++i) {
-            QueryContext ctx = dispatches.at(make_tuple(l, i));
-            cudaStream_t s = streams[i];
+        QueryContext ctx = dispatches.at(l);
+        cudaStream_t s = streams[l % num_stream];
 
-            cudaEvent_t dispatch_time;
-            CHECK_CUDA(cudaEventCreate(&dispatch_time));
-            CHECK_CUDA(cudaEventRecord(dispatch_time, timing_stream));
-            vector<cudaEvent_t> time_tup{dispatch_time, dispatch_time};
-            ctx.events_collection->emplace_back(time_tup);
-            CHECK_CUDA(cudaEventSynchronize(dispatch_time));
+        cudaEvent_t dispatch_time;
+        CHECK_CUDA(cudaEventCreate(&dispatch_time));
+        CHECK_CUDA(cudaEventRecord(dispatch_time, timing_stream));
 
-            for (int k = 0; k < ctx.physical_ops->size(); ++k) {
-                ctx.events_collection->emplace_back(ctx.physical_ops->at(k)->dispatch(s));
-            }
+        vector<cudaEvent_t> time_tup{dispatch_time, dispatch_time};
+        ctx.events_collection->emplace_back(time_tup);
+
+        for (int k = 0; k < ctx.physical_ops->size(); ++k) {
+            ctx.events_collection->emplace_back(ctx.physical_ops->at(k)->dispatch(s));
+        }
+
+        CHECK_CUDA(cudaEventSynchronize(dispatch_time));
+
+        if ((l + 1) % num_query_burst == 0) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(inter_burst_ms));
         }
     }
 
-    printf(" -> Waiting for query completion\n");
+    // printf(" -> Waiting for query completion\n");
     CHECK_CUDA(cudaDeviceSynchronize());
     for (int q = 0; q < num_query; ++q) {
-        for (int m = 0; m < num_stream; ++m) {
-            QueryContext ctx = dispatches.at(make_tuple(q, m));
-            cudaEvent_t dispatch_time = ctx.events_collection->front()[0];
-            cudaEvent_t start_time = ctx.events_collection->at(1)[0];
-            cudaEvent_t complete_time = ctx.events_collection->back()[1];
+        QueryContext ctx = dispatches.at(q);
+        cudaEvent_t dispatch_time = ctx.events_collection->front()[0];
+        cudaEvent_t start_time = ctx.events_collection->at(1)[0];
+        cudaEvent_t complete_time = ctx.events_collection->back()[1];
 
-            float dispatch_time_ms, run_time_ms;
-            cudaEventElapsedTime(&dispatch_time_ms, dispatch_time, complete_time);
-            cudaEventElapsedTime(&run_time_ms, start_time, complete_time);
+        float dispatch_time_ms, run_time_ms;
+        cudaEventElapsedTime(&dispatch_time_ms, dispatch_time, complete_time);
+        cudaEventElapsedTime(&run_time_ms, start_time, complete_time);
 
-            printf("stream_id[%d] query_id[%d] dispatch_time=%.4f run_time=%.4f\n", m, q, dispatch_time_ms, run_time_ms);
-        }
+        // for (auto &event_list : ctx.events_collection.get()) {
+        //     for (auto &event : event_list) {
+        //         cudaEventDestroy(event);
+        //     }
+        // }
+
+        printf("{\"stream_id\": %d, \"query_id\": %d, \"dispatch_time\": %.4f, \"run_time\": %.4f, \"total_time\": %.4f}\n",
+                q % num_stream, q, dispatch_time_ms, run_time_ms, dispatch_time_ms + run_time_ms);
     }
+
+    // for (auto &stream : streams) {
+    //     cudaStreamDestroy(stream);
+    // }
 }

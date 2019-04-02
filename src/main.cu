@@ -105,7 +105,7 @@ int main(int argc, char *argv[]) {
   string model_name = "default-model";
   model_manager->register_model(model, model_name);
 
-  auto scheduler_queue = make_shared<ConcurrentQueue<shared_ptr<LogicalOperator>>>();
+  auto scheduler_queue = make_shared<BlockingConcurrentQueue<shared_ptr<LogicalOperator>>>();
   auto scheduler = StaticScheduler(max_block, &cudaCtx, &handle, &cublasHandle);
   auto dispatch_queue = scheduler.register_model_queue(model_name, scheduler_queue);
   thread scheduler_thread([&]() { scheduler.start(); });

@@ -7,7 +7,7 @@ from collections import namedtuple
 
 PLOT_DST = "/home/ubuntu/plots"
 FIJIT_ROOT = "/home/ubuntu/code/fijit/"
-FIJIT_BIN = os.path.join(FIJIT_ROOT, "build", "fijit-sys")
+FIJIT_BIN = os.path.join(FIJIT_ROOT, "build", "qps_bench")
 UTIL_CMD = ["/usr/bin/nvidia-smi", "--query-gpu=timestamp,utilization.gpu,utilization.memory", "--format=csv", "-lms", "1"]
 
 BenchResult = namedtuple('BenchResult', 'num_streams, max_blocks query_id time_ms')
@@ -17,18 +17,20 @@ class BenchTask(object):
         raise NotImplementedError
 
 class BenchFijit(BenchTask):
-    def __init__(self, num_streams=1, max_blocks=100000, num_query=128, model=None, input_proto=None, input_name=None):
+    def __init__(self, qps=1, num_streams=1, max_blocks=100000, num_query=128, burst_batch_size=1, model=None, input_proto=None, input_name=None):
         self.args = {
             'model': model or os.path.join(FIJIT_ROOT, "data/resnet50.onnx"),
             'input_proto': input_proto or os.path.join(FIJIT_ROOT, "data/resnet50_input.onnx"),
             'input_name': input_name or '0'
         }
 
-        self.params = {
+        self.params = { # num_bursts, num_query_burst, inter_burst_ms
             'num_streams': num_streams,
+            'max_blocks': max_blocks,
             'num_queries_total': num_query,
-            'num_query': num_query  // num_streams,
-            'max_blocks': max_blocks
+            'num_query_burst': burst_batch_size,
+            'num_bursts': num_query // burst_batch_size,
+            'inter_burst_ms': int(burst_batch_size * (1000 / qps)),
         }
 
         self.cmd = " ".join(str(x) for x in [
@@ -36,9 +38,12 @@ class BenchFijit(BenchTask):
             "--model", self.args.get('model'),
             "--input", self.args.get('input_proto'),
             "--input-name", self.args.get('input_name'),
-            "--num-query", self.params.get('num_query'),
             "--num-stream", self.params.get('num_streams'),
-            "--max-block", self.params.get('max_blocks')
+            "--max-block", self.params.get('max_blocks'),
+
+            "--num-bursts", self.params.get('num_bursts'),
+            "--num-query-burst", self.params.get('num_query_burst'),
+            "--inter-burst-ms", self.params.get('inter_burst_ms'),
         ])
 
         print(self.cmd)
@@ -67,8 +72,8 @@ def profile(bench_task: BenchTask):
     df['timestamp'] = (df['timestamp'] - df['timestamp'].iloc[0]).astype('timedelta64[ms]')
     return df, bench_output
 
-def burst_bench(num_streams, max_blocks):
-    task = BenchFijit(num_streams, max_blocks, 32)
+def burst_bench(qps, num_streams, max_blocks):
+    task = BenchFijit(qps, num_streams, max_blocks, 128)
     df, bench_output = profile(task)
     ax = df.plot.line(x="timestamp", ylim=(0, 100))
     ax.get_figure().savefig(os.path.join(PLOT_DST, "ns{}_blocks{}.png".format(num_streams, max_blocks)))
@@ -89,9 +94,10 @@ if __name__ == "__main__":
 
     results = []
     for i in range(8):
-        for ns in [1, 2, 3, 4, 8, 16]:
-            for mb in [20, 40, 80]:
-                results.extend(burst_bench(ns, mb))
+        for qps in [1, 10, 100]:
+            for ns in [1, 2, 4, 8]:
+                for mb in [20, 40, 80]:
+                    results.extend(burst_bench(qps, ns, mb))
     timing_df = pd.DataFrame.from_records(results, columns=BenchResult._fields)
     timing_df.to_csv(os.path.join(PLOT_DST, "results.csv"))
     print(timing_df)

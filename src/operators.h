@@ -44,7 +44,6 @@ public:
   string get_name() { return "TVM-Conv"; };
 
 private:
-  cudaEvent_t start_event, end_event;
   bool data_is_set = false, input_is_set = false, output_is_set = false;
 };
 
@@ -60,7 +59,6 @@ private:
   int total_size;
   CUdeviceptr input, output;
   bool input_is_set = false, output_is_set = false;
-  cudaEvent_t start_event, end_event;
 };
 
 class LogicalOperator {
