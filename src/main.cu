@@ -3,12 +3,14 @@
 #include "cuda.h"
 #include "cuda_runtime_api.h"
 #include "cudnn.h"
+#include "executor.h"
 #include "memory_manager.h"
 #include "model_manager.h"
 #include "onnx_helper.h"
 #include "operators.h"
 #include "proto/onnx.pb.h"
 #include "scheduler.h"
+#include <chrono>
 #include <fstream>
 #include <iostream>
 #include <map>
@@ -47,12 +49,6 @@ void parse_input(TensorProto &input, string input_path) {
   fstream f(input_path, ios::in | ios::binary);
   input.ParseFromIstream(&f);
 }
-
-struct QueryContext {
-  shared_ptr<vector<shared_ptr<LogicalOperator>>> logical_ops;
-  shared_ptr<vector<shared_ptr<PhysicalOperator>>> physical_ops;
-  shared_ptr<vector<vector<cudaEvent_t>>> events_collection;
-};
 
 int main(int argc, char *argv[]) {
   GOOGLE_PROTOBUF_VERIFY_VERSION;
@@ -98,6 +94,10 @@ int main(int argc, char *argv[]) {
   cudnnCreate(&handle);
   cublasCreate(&cublasHandle);
 
+  //  cudaEvent_t start_of_world;
+  //  CHECK_CUDA(cudaEventCreate(&start_of_world));
+  //  CHECK_CUDA(cudaEventRecord(start_of_world, 0));
+
   shared_ptr<StaticMemoryManager> smm = make_shared<StaticMemoryManager>();
   shared_ptr<DynamicMemoryManager> dmm = make_shared<DynamicMemoryManager>();
   shared_ptr<ModelManager> model_manager = make_shared<ModelManager>(smm, dmm);
@@ -113,6 +113,10 @@ int main(int argc, char *argv[]) {
       scheduler.register_model_queue(model_name, scheduler_queue);
   thread scheduler_thread([&]() { scheduler.start(); });
 
+  auto executor = Executor(&cudaCtx);
+  executor.register_queue(model_name, dispatch_queue);
+  thread executor_thread([&]() { executor.start(); });
+
   auto generate_query = [&](int query_id) {
     shared_ptr<vector<shared_ptr<LogicalOperator>>> ops =
         model_manager->instantiate_model(model_name, query_id);
@@ -120,103 +124,33 @@ int main(int argc, char *argv[]) {
     model_manager->register_input(model_name, query_id, input, input_name);
 
     for (auto o : *ops) {
-      ;
       bool enqueue_result = scheduler_queue->enqueue(o);
       if (!enqueue_result) {
         cerr << "enqueued failed" << endl;
       }
     }
-
-    this_thread::sleep_for(std::chrono::milliseconds(150));
-
-    // Step 4, realize operators
-    shared_ptr<vector<shared_ptr<PhysicalOperator>>> physical_ops =
-        make_shared<vector<shared_ptr<PhysicalOperator>>>();
-
-    //    for (auto o : *ops) {
-    //      physical_ops->push_back(o->realize(max_block, &handle,
-    //      &cublasHandle));
-    //    }
-
-    cerr << "Dispatching size " << dispatch_queue->size_approx() << endl;
-
-    for (int i = 0; i < ops->size(); ++i) {
-      shared_ptr<PhysicalOperator> op;
-      bool deque_result = dispatch_queue->try_dequeue(op);
-      if (!deque_result) {
-        cerr << "can't deque operators, current physical ops size "
-             << physical_ops->size() << " current dispatching size "
-             << dispatch_queue->size_approx() << endl;
-        this_thread::sleep_for(std::chrono::milliseconds(150));
-      } else {
-        physical_ops->push_back(op);
-      }
-    }
-
-    shared_ptr<vector<vector<cudaEvent_t>>> events_collection =
-        make_shared<vector<vector<cudaEvent_t>>>(0);
-
-    QueryContext ctx{.logical_ops = ops,
-                     .physical_ops = physical_ops,
-                     .events_collection = events_collection};
-
-    return ctx;
   };
 
-  map<tuple<int, int>, QueryContext> dispatches;
   for (int j = 0; j < num_query; ++j) {
     for (int i = 0; i < num_stream; ++i) {
-      QueryContext ctx = generate_query(j * num_stream + i);
-      tuple<int, int> id = make_tuple(j, i);
-      dispatches.insert({id, ctx});
+      generate_query(j * num_stream + i);
     }
   }
 
-  cudaEvent_t start_of_world;
-  CHECK_CUDA(cudaEventCreate(&start_of_world));
-
-  vector<cudaStream_t> streams;
-  for (int k = 0; k < num_stream; ++k) {
-    cudaStream_t s;
-    CHECK_CUDA(cudaStreamCreate(&s));
-    //    CHECK_CUDA(cudaStreamWaitEvent(s,start_of_world, 0))
-    streams.push_back(s);
-  }
-
-  CHECK_CUDA(cudaEventRecord(start_of_world, 0));
-
-  for (int l = 0; l < num_query; ++l) {
-    for (int i = 0; i < num_stream; ++i) {
-      cudaStream_t s = streams[i];
-
-      QueryContext ctx = dispatches.at(make_tuple(l, i));
-      for (int k = 0; k < ctx.physical_ops->size(); ++k) {
-        ctx.events_collection->emplace_back(
-            ctx.physical_ops->at(k)->dispatch(s));
-      }
-    }
-  }
+  this_thread::sleep_for(1s);
 
   CHECK_CUDA(cudaDeviceSynchronize());
 
-  for (int m = 0; m < num_stream; ++m) {
-    QueryContext ctx = dispatches.at(make_tuple(num_query - 1, m));
-    TotalTimeReporter reporter_2(ctx.logical_ops, ctx.physical_ops,
-                                 ctx.events_collection, start_of_world);
+  auto events =
+      EventRegistrar::get_global_event_registrar().get_events(model_name);
 
-    float start;
-    cudaEventElapsedTime(&start, start_of_world,
-                         ctx.events_collection->at(0)[0]);
-    std::cout << start << std::endl;
-
-    std::cout << reporter_2.report() << std::endl;
-  }
-
+  executor.stop();
   scheduler.stop();
   scheduler_thread.join();
-  // Step 7: Printout chrome://tracing data
-  //  ChromeTraceReporter reporter_1(ops, physical_ops, events_collection,
-  //                                 start_of_world);
+  executor_thread.join();
 
-  //  std::cout << reporter_1.report(1) << std::endl;
+  float total_time;
+  cudaEventElapsedTime(&total_time, events[0][0],
+                       events.at(events.size() - 1)[1]);
+  cout << "Total time: " << total_time << " ms";
 }

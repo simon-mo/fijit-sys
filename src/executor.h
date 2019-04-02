@@ -14,6 +14,7 @@
 #include <list>
 #include <memory>
 #include <tuple>
+#include <vector>
 
 using namespace moodycamel;
 using namespace std;
@@ -23,22 +24,26 @@ using PhysicalOpQueue =
 
 struct ExecutorCtx {
   string model_name;
-  int queue_id;
   cudaStream_t stream;
   PhysicalOpQueue queue;
 };
 
 class Executor {
 public:
-  void register_queue(string model_name, int queue_id, PhysicalOpQueue queue_);
+  Executor(CUcontext *ctx_) : ctx(ctx_){};
+  void register_queue(string model_name, PhysicalOpQueue queue_);
   void start();
   void stop();
 
 private:
+  void wait();
   std::list<ExecutorCtx> executor_queues;
   bool should_stop = false;
 
-  shared_ptr<EventRegistrar> events_registrar = get_gobal_event_registrar();
+  CUcontext *ctx;
+
+  EventRegistrar &events_registrar =
+      EventRegistrar::get_global_event_registrar();
 };
 
 #endif // FIJIT_SYS_OPERATOR_H
