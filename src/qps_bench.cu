@@ -94,20 +94,19 @@ public:
             auto ops = model_manager_->instantiate_model(model_name_, stream_id);
             model_manager_->register_input(model_name_, stream_id, input_, input_name_);
             ctx_map_.insert(make_pair(stream_id, ops));
-        }
 
-        auto ops = ctx_map_.at(stream_id);
-        for (auto o : *ops) {
-            scheduler_queue_->enqueue(o);
-        }
+            for (auto o : *ops) {
+                scheduler_queue_->enqueue(o);
+            }
 
-        auto physical_ops = make_shared<vector<shared_ptr<PhysicalOperator>>>();
-        for (int i = 0; i < ops->size(); ++i) {
-            shared_ptr<PhysicalOperator> op;
-            dispatch_queue_->wait_dequeue(op);
-            physical_ops->push_back(op);
+            auto physical_ops = make_shared<vector<shared_ptr<PhysicalOperator>>>();
+            for (int i = 0; i < ops->size(); ++i) {
+                shared_ptr<PhysicalOperator> op;
+                dispatch_queue_->wait_dequeue(op);
+                physical_ops->push_back(op);
+            }
+            ctx_physical_map_.insert(make_pair(stream_id, physical_ops));
         }
-        ctx_physical_map_.insert(make_pair(stream_id, physical_ops));
 
         QueryContext ctx{
                 .logical_ops = ctx_map_.at(stream_id),
@@ -158,7 +157,7 @@ int main(int argc, char *argv[]) {
 
             ("num-query-burst", "Number of query per stream (burst)", cxxopts::value<int>()->default_value("1"))
             ("num-bursts", "Number of bursts", cxxopts::value<int>()->default_value("10"))
-            ("inter-burst-ms", "Number of bursts", cxxopts::value<int>()->default_value("100"))
+            ("inter-burst-us", "Time between bursts in usec", cxxopts::value<int>()->default_value("100"))
 
             ("h, help", "Print help");
     // clang-format on
@@ -177,7 +176,7 @@ int main(int argc, char *argv[]) {
 
     const int num_query_burst = result["num-query-burst"].as<int>();
     const int num_bursts = result["num-bursts"].as<int>();
-    const int inter_burst_ms = result["inter-burst-ms"].as<int>();
+    const int inter_burst_us = result["inter-burst-us"].as<int>();
     const int num_query = num_query_burst * num_bursts;  // num queries per stream
 
     QPSBench bench(model_path, input_path, max_block, input_name, num_stream);
@@ -211,14 +210,17 @@ int main(int argc, char *argv[]) {
         vector<cudaEvent_t> time_tup{dispatch_time, dispatch_time};
         ctx.events_collection->emplace_back(time_tup);
 
+        // TODO create cuda events
+        //    cudaEventCreate(&start_event);
+        //    cudaEventCreate(&end_event);
         for (int k = 0; k < ctx.physical_ops->size(); ++k) {
             ctx.events_collection->emplace_back(ctx.physical_ops->at(k)->dispatch(s));
         }
 
-        CHECK_CUDA(cudaEventSynchronize(dispatch_time));
+        // CHECK_CUDA(cudaEventSynchronize(dispatch_time));
 
         if ((l + 1) % num_query_burst == 0) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(inter_burst_ms));
+            std::this_thread::sleep_for(std::chrono::microseconds(inter_burst_us));
         }
     }
 

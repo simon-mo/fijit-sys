@@ -30,7 +30,7 @@ class BenchFijit(BenchTask):
             'num_queries_total': num_query,
             'num_query_burst': burst_batch_size,
             'num_bursts': num_query // burst_batch_size,
-            'inter_burst_ms': int(burst_batch_size * (1000 / qps)),
+            'inter_burst_ms': int(1000. * burst_batch_size * (1000. / qps)),
         }
 
         self.cmd = " ".join(str(x) for x in [
@@ -43,7 +43,7 @@ class BenchFijit(BenchTask):
 
             "--num-bursts", self.params.get('num_bursts'),
             "--num-query-burst", self.params.get('num_query_burst'),
-            "--inter-burst-ms", self.params.get('inter_burst_ms'),
+            "--inter-burst-us", self.params.get('inter_burst_ms'),
         ])
 
         print(self.cmd)
@@ -76,28 +76,28 @@ def burst_bench(qps, num_streams, max_blocks):
     task = BenchFijit(qps, num_streams, max_blocks, 128)
     df, bench_output = profile(task)
     ax = df.plot.line(x="timestamp", ylim=(0, 100))
-    ax.get_figure().savefig(os.path.join(PLOT_DST, "ns{}_blocks{}.png".format(num_streams, max_blocks)))
-    out_path = os.path.join(PLOT_DST, "ns{}_blocks{}.log".format(num_streams, max_blocks))
+    ax.get_figure().savefig(os.path.join(PLOT_DST, "qps{}_ns{}_blocks{}.png".format(qps, num_streams, max_blocks)))
+    out_path = os.path.join(PLOT_DST, "qps{}_ns{}_blocks{}.log".format(qps, num_streams, max_blocks))
     with open(out_path, 'w') as f:
         f.write(bench_output)
-    query_times_ms = [float(line.split(' ', 3)[2]) for line in bench_output.splitlines() if 'Total time: ' in line]
-    if len(query_times_ms) == 0:
-        raise Exception('No timings; cuda memory error?')
+    # query_times_ms = [float(line.split(' ', 3)[2]) for line in bench_output.splitlines() if 'Total time: ' in line]
+    # if len(query_times_ms) == 0:
+    #     raise Exception('No timings; cuda memory error?')
     # avg = np.mean(query_times_ms)
     # p50 = np.percentile(query_times_ms, 50)
     # p99 = np.percentile(query_times_ms, 99)
-    return [BenchResult(num_streams, max_blocks, i, time_ms) for i, time_ms in enumerate(query_times_ms)]
+    # return [BenchResult(num_streams, max_blocks, i, time_ms) for i, time_ms in enumerate(query_times_ms)]
 
 if __name__ == "__main__":
     if not os.path.exists(PLOT_DST):
         os.makedirs(PLOT_DST)
 
     results = []
-    for i in range(8):
-        for qps in [1, 10, 100]:
-            for ns in [1, 2, 4, 8]:
-                for mb in [20, 40, 80]:
-                    results.extend(burst_bench(qps, ns, mb))
-    timing_df = pd.DataFrame.from_records(results, columns=BenchResult._fields)
-    timing_df.to_csv(os.path.join(PLOT_DST, "results.csv"))
-    print(timing_df)
+    for qps in [5000]:
+        for ns in [1, 2, 4, 8]:
+            for mb in [80]:  # 20, 40,
+                # results.extend(burst_bench(qps, ns, mb))
+                burst_bench(qps, ns, mb)
+    # timing_df = pd.DataFrame.from_records(results, columns=BenchResult._fields)
+    # timing_df.to_csv(os.path.join(PLOT_DST, "results.csv"))
+    # print(timing_df)
