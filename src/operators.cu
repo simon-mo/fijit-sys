@@ -2,6 +2,7 @@
 #include <cuda_runtime.h>
 
 #include <cassert>
+#include <chrono>
 #include <iostream>
 #include <limits>
 #include <memory.h>
@@ -19,9 +20,9 @@
 #include "operators.h"
 
 #include <fmt/core.h>
-#include <vector>
 
 using namespace std;
+using namespace chrono;
 
 unordered_set<string> AllowedOps({"Conv", "AveragePool", "MaxPool", "Add",
                                   "Sum", "Relu", "BatchNormalization",
@@ -150,7 +151,9 @@ LogicalOperator::LogicalOperator(NodeProto node_,
 
 shared_ptr<TVMOperator> LogicalOperator::realize_tvm(int max_blocks) {
   assert(type == "Conv");
-  KernelDB db;
+  KernelDB &db = KernelDB::get_global_kernel_db();
+
+  high_resolution_clock::time_point t1 = high_resolution_clock::now();
 
   auto shape_vectors = [](ValueInfoProto p) {
     vector<int> shapes(0);
@@ -221,6 +224,9 @@ shared_ptr<TVMOperator> LogicalOperator::realize_tvm(int max_blocks) {
       db.get_fatbin(redis_key), db.get_block_dim(redis_key),
       db.get_grid_dim(redis_key), db.get_kernel_args(redis_key),
       db.get_kernel_name(redis_key));
+  high_resolution_clock::time_point t2 = high_resolution_clock::now();
+  auto dur = duration_cast<microseconds>(t2 - t1).count();
+  cerr << "TVM Op Instantiate ms: " << dur << endl;
 
   inject_kwargs(op);
 

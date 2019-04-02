@@ -118,6 +118,7 @@ int main(int argc, char *argv[]) {
   thread executor_thread([&]() { executor.start(); });
 
   auto generate_query = [&](int query_id) {
+    query_id = 0; // TODO(simon): we are overriding qid to re-use memory
     shared_ptr<vector<shared_ptr<LogicalOperator>>> ops =
         model_manager->instantiate_model(model_name, query_id);
 

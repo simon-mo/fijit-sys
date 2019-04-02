@@ -29,6 +29,8 @@ public:
 
   string get_kernel_name(string &);
 
+  static KernelDB &get_global_kernel_db(void);
+
 private:
   redox::Redox rdx;
 };

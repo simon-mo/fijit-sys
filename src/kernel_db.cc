@@ -98,3 +98,8 @@ string KernelDB::get_kernel_name(string &op) {
   CHECK_OK(c);
   return c.reply();
 }
+
+KernelDB &KernelDB::get_global_kernel_db() {
+  static KernelDB db;
+  return db;
+}
