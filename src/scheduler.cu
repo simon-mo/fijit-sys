@@ -40,7 +40,6 @@ void StaticScheduler::start() {
       break;
     }
     schedule();
-    this_thread::sleep_for(std::chrono::milliseconds(50));
   }
 }
 
@@ -56,6 +55,7 @@ void StaticScheduler::schedule() {
     return;
   }
 
+  int num_entries = 0;
   for (auto &entry : logical_op_queues) {
     string model_name = entry.first;
     shared_ptr<ConcurrentQueue<shared_ptr<PhysicalOperator>>> dispatch_queue =
@@ -64,7 +64,7 @@ void StaticScheduler::schedule() {
     shared_ptr<ConcurrentQueue<shared_ptr<LogicalOperator>>> op_queue =
         entry.second;
 
-    cerr << model_name << " queue size " << op_queue->size_approx() << endl;
+    // cerr << model_name << " queue size " << op_queue->size_approx() << endl;
 
     shared_ptr<LogicalOperator> op;
     while (op_queue->try_dequeue(op)) {
@@ -75,6 +75,9 @@ void StaticScheduler::schedule() {
       if (!success) {
         cerr << "Failed to enqueue operation to dispatch queue" << endl;
       }
+      num_entries++;
     }
   }
+
+  // cerr << "\t[StaticScheduler] Loaded " << num_entries << " physical operations" << endl;
 }

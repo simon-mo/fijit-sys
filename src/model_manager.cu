@@ -45,7 +45,6 @@ ModelManager::instantiate_model(string model_name, int query_id) {
     shared_ptr<LogicalOperator> op = make_shared<LogicalOperator>(node, shape);
 
     for (auto inp : node.input()) {
-
       // if this data is dynamic
       if (static_data.find(inp) == static_data.end()) {
 
