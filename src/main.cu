@@ -105,12 +105,9 @@ int main(int argc, char *argv[]) {
   string model_name = "default-model";
   model_manager->register_model(model, model_name);
 
-  shared_ptr<ConcurrentQueue<shared_ptr<LogicalOperator>>> scheduler_queue =
-      make_shared<ConcurrentQueue<shared_ptr<LogicalOperator>>>();
-
+  auto scheduler_queue = make_shared<BlockingConcurrentQueue<shared_ptr<LogicalOperator>>>();
   auto scheduler = StaticScheduler(max_block, &cudaCtx, &handle, &cublasHandle);
-  shared_ptr<ConcurrentQueue<shared_ptr<PhysicalOperator>>> dispatch_queue =
-      scheduler.register_model_queue(model_name, scheduler_queue);
+  auto dispatch_queue = scheduler.register_model_queue(model_name, scheduler_queue);
   thread scheduler_thread([&]() { scheduler.start(); });
 
   auto executor = Executor(&cudaCtx);
@@ -118,9 +115,7 @@ int main(int argc, char *argv[]) {
   thread executor_thread([&]() { executor.start(); });
 
   auto generate_query = [&](int query_id) {
-    shared_ptr<vector<shared_ptr<LogicalOperator>>> ops =
-        model_manager->instantiate_model(model_name, query_id);
-
+    auto ops = model_manager->instantiate_model(model_name, query_id);
     model_manager->register_input(model_name, query_id, input, input_name);
 
     for (auto o : *ops) {
@@ -129,6 +124,7 @@ int main(int argc, char *argv[]) {
         cerr << "enqueued failed" << endl;
       }
     }
+
   };
 
   for (int j = 0; j < num_query; ++j) {
@@ -153,4 +149,5 @@ int main(int argc, char *argv[]) {
   cudaEventElapsedTime(&total_time, events[0][0],
                        events.at(events.size() - 1)[1]);
   cout << "Total time: " << total_time << " ms";
+
 }

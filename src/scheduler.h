@@ -6,19 +6,18 @@
 #define FIJIT_SYS_SCHEDULER_H
 
 #include "model_manager.h"
-
 #include "concurrentqueue/concurrentqueue.h"
-
+#include "concurrentqueue/blockingconcurrentqueue.h"
 #include <unordered_map>
 
 using namespace moodycamel;
 
 class Scheduler {
 public:
-  shared_ptr<ConcurrentQueue<shared_ptr<PhysicalOperator>>>
+  shared_ptr<BlockingConcurrentQueue<shared_ptr<PhysicalOperator>>>
   register_model_queue(
       string model_name,
-      shared_ptr<ConcurrentQueue<shared_ptr<LogicalOperator>>> q);
+      shared_ptr<BlockingConcurrentQueue<shared_ptr<LogicalOperator>>> q);
 
   void register_total_resource(shared_ptr<int> total_resource_estimate);
 
@@ -31,13 +30,8 @@ public:
 protected:
   bool shouldStop = false;
 
-  unordered_map<string,
-                shared_ptr<ConcurrentQueue<shared_ptr<LogicalOperator>>>>
-      logical_op_queues;
-  unordered_map<string,
-                shared_ptr<ConcurrentQueue<shared_ptr<PhysicalOperator>>>>
-      physical_op_queues;
-
+  unordered_map<string, shared_ptr<BlockingConcurrentQueue<shared_ptr<LogicalOperator>>>> logical_op_queues;
+  unordered_map<string, shared_ptr<BlockingConcurrentQueue<shared_ptr<PhysicalOperator>>>> physical_op_queues;
   shared_ptr<int> total_resource = make_shared<int>(80);
 };
 
