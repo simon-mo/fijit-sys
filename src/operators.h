@@ -30,7 +30,7 @@ public:
 
   void set_argument(KERNEL_ARG, CUdeviceptr);
 
-  vector<cudaEvent_t> dispatch(cudaStream_t);
+  void dispatch(cudaStream_t);
 
   bool operator==(const TVMOperator &rhs) const;
 
@@ -51,7 +51,7 @@ class ReshapeOperator : public PhysicalOperator {
 public:
   ReshapeOperator(int total_size);
   void set_argument(KERNEL_ARG arg, CUdeviceptr ptr);
-  vector<cudaEvent_t> dispatch(cudaStream_t stream);
+  void dispatch(cudaStream_t stream);
 
   string get_name() { return "Native-Reshape"; };
 

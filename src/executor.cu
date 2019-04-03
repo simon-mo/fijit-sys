@@ -34,8 +34,8 @@ void Executor::start() {
 
     for (ExecutorCtx &ctx_struct : executor_queues) {
       while (ctx_struct.queue->try_dequeue(op)) {
-        auto events = op->dispatch(ctx_struct.stream);
-        events_registrar.insert(ctx_struct.model_name, events);
+        op->dispatch(ctx_struct.stream);
+        // events_registrar.insert(ctx_struct.model_name, events);
       }
     }
   }

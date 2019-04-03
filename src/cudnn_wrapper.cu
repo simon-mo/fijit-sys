@@ -29,7 +29,7 @@ PoolingOperator::PoolingOperator(cudnnHandle_t *handle_,
   CHECK_CUDNN(cudnnCreateTensorDescriptor(&input_desc));
   CHECK_CUDNN(cudnnCreateTensorDescriptor(&output_desc));
 
-  events = cuda_get_events(2);
+  // events = cuda_get_events(2);
 
   vector<int> shapes(0);
   for (auto d : input_shape_.type().tensor_type().shape().dim()) {
@@ -103,14 +103,14 @@ PoolingOperator::PoolingOperator(cudnnHandle_t *handle_,
       /* int w */ outW));
 }
 
-vector<cudaEvent_t> PoolingOperator::dispatch(cudaStream_t s) {
+void PoolingOperator::dispatch(cudaStream_t s) {
   assert(input_is_set && output_is_set);
 
   float *scalers = new float[2];
   scalers[0] = 1;
   scalers[1] = 0;
 
-  CHECK_CUDA(cudaEventRecord(events[0], s));
+  // CHECK_CUDA(cudaEventRecord(events[0], s));
   cudnnSetStream(*handle, s);
   CHECK_CUDNN(cudnnPoolingForward(
       /* cudnnHandle_t * handle */ *handle,
@@ -121,8 +121,8 @@ vector<cudaEvent_t> PoolingOperator::dispatch(cudaStream_t s) {
       /* const void *beta */ scalers + 1,
       /* const cudnnTensorDescriptor_t yDesc */ output_desc,
       /* void *y */ (void *)(uintptr_t)output));
-  CHECK_CUDA(cudaEventRecord(events[1], s));
-  return events;
+  // CHECK_CUDA(cudaEventRecord(events[1], s));
+  // return events;
 }
 
 void PoolingOperator::set_argument(KERNEL_ARG arg, CUdeviceptr ptr) {
@@ -145,7 +145,7 @@ AddOperator::AddOperator(cudnnHandle_t *handle_, ValueInfoProto input_shape_,
     : handle{handle_} {
   CHECK_CUDNN(cudnnCreateTensorDescriptor(&input_desc));
   CHECK_CUDNN(cudnnCreateTensorDescriptor(&output_desc));
-  events = cuda_get_events(2);
+  // events = cuda_get_events(2);
 
   vector<int> input_shapes(0);
   for (auto d : input_shape_.type().tensor_type().shape().dim()) {
@@ -202,14 +202,14 @@ void AddOperator::set_argument(KERNEL_ARG arg, CUdeviceptr ptr) {
   }
 }
 
-vector<cudaEvent_t> AddOperator::dispatch(cudaStream_t s) {
+void AddOperator::dispatch(cudaStream_t s) {
   assert(input_is_set && output_is_set && data_is_set);
 
   float *scalers = new float[2];
   scalers[0] = 1;
   scalers[1] = 1;
 
-  CHECK_CUDA(cudaEventRecord(events[0], s));
+  // CHECK_CUDA(cudaEventRecord(events[0], s));
   cudnnSetStream(*handle, s);
 
   cuMemcpyDtoDAsync(output, data, sizeof(float) * total_size, s);
@@ -222,16 +222,15 @@ vector<cudaEvent_t> AddOperator::dispatch(cudaStream_t s) {
       /* cDesc */ output_desc,
       /* *C */ CUDevicePtrCast(output));
 
-  CHECK_CUDA(cudaEventRecord(events[1], s));
-
-  return events;
+  // CHECK_CUDA(cudaEventRecord(events[1], s));
+  // return events;
 }
 
 ReluOperator::ReluOperator(cudnnHandle_t *handle_, ValueInfoProto input_shape_)
     : handle{handle_} {
   CHECK_CUDNN(cudnnCreateTensorDescriptor(&input_desc));
   CHECK_CUDNN(cudnnCreateTensorDescriptor(&output_desc));
-  events = cuda_get_events(2);
+  // events = cuda_get_events(2);
 
   vector<int> input_shapes(0);
   for (auto d : input_shape_.type().tensor_type().shape().dim()) {
@@ -279,14 +278,14 @@ void ReluOperator::set_argument(KERNEL_ARG arg, CUdeviceptr ptr) {
   }
 }
 
-std::vector<cudaEvent_t> ReluOperator::dispatch(cudaStream_t s) {
+void ReluOperator::dispatch(cudaStream_t s) {
   assert(input_is_set && output_is_set);
 
   float *scalers = new float[2];
   scalers[0] = 1;
   scalers[1] = 1;
 
-  CHECK_CUDA(cudaEventRecord(events[0], s));
+  // CHECK_CUDA(cudaEventRecord(events[0], s));
   CHECK_CUDNN(cudnnSetStream(*handle, s));
 
   CHECK_CUDNN(cudnnActivationForward(
@@ -299,9 +298,8 @@ std::vector<cudaEvent_t> ReluOperator::dispatch(cudaStream_t s) {
       /* const cudnnTensorDescriptor_t   yDesc */ output_desc,
       /* void                           *y */ CUDevicePtrCast(output)));
 
-  CHECK_CUDA(cudaEventRecord(events[1], s));
-
-  return events;
+  // CHECK_CUDA(cudaEventRecord(events[1], s));
+  // return events;
 }
 
 BatchNormOperator::BatchNormOperator(cudnnHandle_t *handle_,
@@ -311,7 +309,7 @@ BatchNormOperator::BatchNormOperator(cudnnHandle_t *handle_,
   CHECK_CUDNN(cudnnCreateTensorDescriptor(&input_desc));
   CHECK_CUDNN(cudnnCreateTensorDescriptor(&output_desc));
   CHECK_CUDNN(cudnnCreateTensorDescriptor(&batch_norm_desc));
-  events = cuda_get_events(2);
+  // events = cuda_get_events(2);
 
   vector<int> input_shapes(0);
   for (auto d : input_shape_.type().tensor_type().shape().dim()) {
@@ -360,14 +358,14 @@ void BatchNormOperator::set_argument(KERNEL_ARG arg, CUdeviceptr ptr) {
   }
 }
 
-vector<cudaEvent_t> BatchNormOperator::dispatch(cudaStream_t s) {
+void BatchNormOperator::dispatch(cudaStream_t s) {
   assert(input_is_set && data_is_set && output_is_set);
 
   float *scalers = new float[2];
   scalers[0] = 1;
   scalers[1] = 0;
 
-  CHECK_CUDA(cudaEventRecord(events[0], s));
+  // CHECK_CUDA(cudaEventRecord(events[0], s));
   CHECK_CUDNN(cudnnSetStream(*handle, s));
 
   if (epsilon < 1e-5) {
@@ -391,9 +389,8 @@ vector<cudaEvent_t> BatchNormOperator::dispatch(cudaStream_t s) {
       /* const void *estimatedVariance */ CUDevicePtrConstCast(args[3]),
       /* double epsilon */ epsilon));
 
-  CHECK_CUDA(cudaEventRecord(events[1], s));
-
-  return events;
+  // CHECK_CUDA(cudaEventRecord(events[1], s));
+  // return events;
 }
 
 SoftMaxOperator::SoftMaxOperator(cudnnHandle_t *handle_,
@@ -401,7 +398,7 @@ SoftMaxOperator::SoftMaxOperator(cudnnHandle_t *handle_,
     : handle(handle_) {
   CHECK_CUDNN(cudnnCreateTensorDescriptor(&input_desc));
   CHECK_CUDNN(cudnnCreateTensorDescriptor(&output_desc));
-  events = cuda_get_events(2);
+  // events = cuda_get_events(2);
 
   vector<int> input_shapes(0);
   for (auto d : input_shape_.type().tensor_type().shape().dim()) {
@@ -446,14 +443,14 @@ void SoftMaxOperator::set_argument(KERNEL_ARG arg, CUdeviceptr ptr) {
   }
 }
 
-vector<cudaEvent_t> SoftMaxOperator::dispatch(cudaStream_t s) {
+void SoftMaxOperator::dispatch(cudaStream_t s) {
   assert(input_is_set && output_is_set);
 
   float *scalers = new float[2];
   scalers[0] = 1;
   scalers[1] = 0;
 
-  CHECK_CUDA(cudaEventRecord(events[0], s));
+  // CHECK_CUDA(cudaEventRecord(events[0], s));
   CHECK_CUDNN(cudnnSetStream(*handle, s));
 
   CHECK_CUDNN(cudnnSoftmaxForward(
@@ -467,8 +464,8 @@ vector<cudaEvent_t> SoftMaxOperator::dispatch(cudaStream_t s) {
       /* const cudnnTensorDescriptor_t    yDesc*/ output_desc,
       /* void                            *y*/ CUDevicePtrCast(output)));
 
-  CHECK_CUDA(cudaEventRecord(events[1], s));
-  return events;
+  // CHECK_CUDA(cudaEventRecord(events[1], s));
+  // return events;
 }
 
 ConvOperator::ConvOperator(
@@ -480,7 +477,7 @@ ConvOperator::ConvOperator(
   CHECK_CUDNN(cudnnCreateConvolutionDescriptor(&convolution_descriptor));
   CHECK_CUDNN(cudnnCreateTensorDescriptor(&output_descriptor));
 
-  events = cuda_get_events(2);
+  // events = cuda_get_events(2);
 
   string input_name = node.input().Get(0);
   string filter_name = node.input().Get(1);
@@ -586,14 +583,14 @@ void ConvOperator::set_argument(KERNEL_ARG arg, CUdeviceptr ptr) {
   }
 }
 
-vector<cudaEvent_t> ConvOperator::dispatch(cudaStream_t s) {
+void ConvOperator::dispatch(cudaStream_t s) {
   assert(input_is_set && output_is_set && data_is_set);
 
   float *scalers = new float[2];
   scalers[0] = 1;
   scalers[1] = 1;
 
-  CHECK_CUDA(cudaEventRecord(events[0], s));
+  // CHECK_CUDA(cudaEventRecord(events[0], s));
   CHECK_CUDNN(cudnnSetStream(*handle, s));
   cudnnConvolutionForward(
       *handle, scalers, input_descriptor, CUDevicePtrConstCast(input),
@@ -601,6 +598,6 @@ vector<cudaEvent_t> ConvOperator::dispatch(cudaStream_t s) {
       CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_GEMM, nullptr, 0, scalers + 1,
       output_descriptor, CUDevicePtrCast(output));
 
-  CHECK_CUDA(cudaEventRecord(events[1], s));
-  return events;
+  // CHECK_CUDA(cudaEventRecord(events[1], s));
+  // return events;
 }

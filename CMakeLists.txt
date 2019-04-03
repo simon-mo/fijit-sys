@@ -19,21 +19,6 @@ add_subdirectory(third_party/rapidjson)
 add_subdirectory(third_party/fmt)
 add_subdirectory(proto)
 
-
-## Our Main Executable is fijit-sys binary
-add_executable(
-        ${PROJECT_NAME}
-        src/main.cu
-        src/abstract_operators.h
-        third_party/cxxopts/cxxopts.hpp
-)
-
-target_link_libraries(${PROJECT_NAME}
-        proto ${PROTOBUF_LIBRARY}
-        )
-
-
-
 ## CPU Only Libraries
 add_library(fijit-lib SHARED
         src/kernel_db.h

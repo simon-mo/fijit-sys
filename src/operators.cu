@@ -77,10 +77,10 @@ void TVMOperator::set_argument(KERNEL_ARG arg, CUdeviceptr ptr) {
     }
 }
 
-vector<cudaEvent_t> TVMOperator::dispatch(cudaStream_t s) {
-    cudaEvent_t start_event, end_event;
+void TVMOperator::dispatch(cudaStream_t s) {
+    /*cudaEvent_t start_event, end_event;
     cudaEventCreate(&start_event);
-    cudaEventCreate(&end_event);
+    cudaEventCreate(&end_event);*/
 
     void **params = new void *[args.size()];
     for (int i = 0; i < args.size(); i++) {
@@ -102,7 +102,7 @@ vector<cudaEvent_t> TVMOperator::dispatch(cudaStream_t s) {
         }
     }
 
-    cudaEventRecord(start_event, s);
+    // cudaEventRecord(start_event, s);
 
     CHECK_CUDEVICE(cuLaunchKernel(
             /*CUfunction*/ func,
@@ -117,9 +117,8 @@ vector<cudaEvent_t> TVMOperator::dispatch(cudaStream_t s) {
             /*void** kernelParams*/ params,
             /* void** extra*/ NULL));
 
-    cudaEventRecord(end_event, s);
-
-    return vector<cudaEvent_t>({start_event, end_event});
+    // cudaEventRecord(end_event, s);
+    // return vector<cudaEvent_t>({start_event, end_event});
 }
 
 bool TVMOperator::operator==(const TVMOperator &rhs) const {
@@ -318,19 +317,15 @@ void ReshapeOperator::set_argument(KERNEL_ARG arg, CUdeviceptr ptr) {
     }
 }
 
-vector<cudaEvent_t> ReshapeOperator::dispatch(cudaStream_t stream) {
-    cudaEvent_t start_event, end_event;
-    cudaEventCreate(&start_event);
-    cudaEventCreate(&end_event);
-
+void ReshapeOperator::dispatch(cudaStream_t stream) {
+    // cudaEvent_t start_event, end_event;
+    // cudaEventCreate(&start_event);
+    // cudaEventCreate(&end_event);
     assert(input_is_set && output_is_set);
-
-    cudaEventRecord(start_event, stream);
-
+    // cudaEventRecord(start_event, stream);
     cuMemcpyDtoDAsync(output, input, sizeof(float) * total_size, stream);
-
-    cudaEventRecord(end_event, stream);
-    return {start_event, end_event};
+    // cudaEventRecord(end_event, stream);
+    // return {start_event, end_event};
 }
 
 ReshapeOperator::ReshapeOperator(int total_size) : total_size(total_size) {

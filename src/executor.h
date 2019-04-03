@@ -10,6 +10,7 @@
 #include "model_manager.h"
 
 #include "concurrentqueue/concurrentqueue.h"
+#include "concurrentqueue/blockingconcurrentqueue.h"
 
 #include <list>
 #include <memory>
@@ -19,8 +20,7 @@
 using namespace moodycamel;
 using namespace std;
 
-using PhysicalOpQueue =
-    shared_ptr<ConcurrentQueue<shared_ptr<PhysicalOperator>>>;
+using PhysicalOpQueue = shared_ptr<BlockingConcurrentQueue<shared_ptr<PhysicalOperator>>>;
 
 struct ExecutorCtx {
   string model_name;
@@ -39,11 +39,8 @@ private:
   void wait();
   std::list<ExecutorCtx> executor_queues;
   bool should_stop = false;
-
   CUcontext *ctx;
-
-  EventRegistrar &events_registrar =
-      EventRegistrar::get_global_event_registrar();
+  EventRegistrar &events_registrar = EventRegistrar::get_global_event_registrar();
 };
 
 #endif // FIJIT_SYS_OPERATOR_H
