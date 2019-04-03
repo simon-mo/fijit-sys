@@ -7,6 +7,7 @@
 #include "cudnn.h"
 
 #include "proto/onnx.pb.h"
+#include <fmt/core.h>
 
 #include <iostream>
 #include <memory>
@@ -18,8 +19,6 @@
 #include "abstract_operators.h"
 #include "common.h"
 #include "cudnn_wrapper.h"
-
-#include <vector>
 
 using namespace onnx;
 using namespace std;
@@ -42,6 +41,10 @@ public:
   CUdeviceptr data, input, output;
 
   string get_name() { return "TVM-Conv"; };
+  string get_name(int max_block) { return fmt::format("TVM-Conv-{}.", 42); };
+  static string get_name_static(int max_block) {
+    return fmt::format("TVM-Conv-{}.", 42);
+  };
 
 private:
   cudaEvent_t start_event, end_event;
@@ -66,6 +69,10 @@ private:
 class LogicalOperator {
 public:
   LogicalOperator(NodeProto, shared_ptr<unordered_map<string, ValueInfoProto>>);
+
+  void preload(vector<int> possible_max_blocks, cudnnHandle_t *handle,
+               cublasHandle_t *cublasHandle);
+
   shared_ptr<PhysicalOperator> realize(int max_blocks, cudnnHandle_t *handle,
                                        cublasHandle_t *cublasHandle);
   shared_ptr<TVMOperator> realize_tvm(int max_blocks);
@@ -93,6 +100,10 @@ private:
   ValueInfoProto output_shape;
 
   vector<tuple<KERNEL_ARG, CUdeviceptr>> kernel_kwargs;
+
+  bool preloaded = false;
+  map<int, shared_ptr<PhysicalOperator>> preloaded_ops;
+  shared_ptr<PhysicalOperator> realize_preloaded(int max_blocks);
 };
 
 #endif /* OPERATORS_H */

@@ -117,10 +117,16 @@ int main(int argc, char *argv[]) {
   executor.register_queue(model_name, dispatch_queue);
   thread executor_thread([&]() { executor.start(); });
 
+  vector<int> possible_blocks = {20, 40, 80};
+
   auto generate_query = [&](int query_id) {
     query_id = 0; // TODO(simon): we are overriding qid to re-use memory
     shared_ptr<vector<shared_ptr<LogicalOperator>>> ops =
         model_manager->instantiate_model(model_name, query_id);
+
+    for (int i = 0; i < ops->size(); ++i) {
+      ops->at(i)->preload(possible_blocks, &handle, &cublasHandle);
+    }
 
     model_manager->register_input(model_name, query_id, input, input_name);
 

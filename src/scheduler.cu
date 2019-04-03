@@ -74,13 +74,8 @@ void StaticScheduler::schedule() {
 
     shared_ptr<LogicalOperator> op;
     while (op_queue->try_dequeue(op)) {
-      high_resolution_clock::time_point t1 = high_resolution_clock::now();
       shared_ptr<PhysicalOperator> physical_op =
           op->realize(max_blocks, handle, cublasHandle);
-      high_resolution_clock::time_point t2 = high_resolution_clock::now();
-      auto duration = duration_cast<microseconds>(t2 - t1);
-      cerr << "Realize duration for " << physical_op->get_name()
-           << " , us: " << duration.count() << endl;
 
       bool success = dispatch_queue->enqueue(physical_op);
 

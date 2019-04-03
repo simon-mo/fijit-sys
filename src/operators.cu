@@ -153,8 +153,6 @@ shared_ptr<TVMOperator> LogicalOperator::realize_tvm(int max_blocks) {
   assert(type == "Conv");
   KernelDB &db = KernelDB::get_global_kernel_db();
 
-  high_resolution_clock::time_point t1 = high_resolution_clock::now();
-
   auto shape_vectors = [](ValueInfoProto p) {
     vector<int> shapes(0);
     for (auto d : p.type().tensor_type().shape().dim()) {
@@ -224,9 +222,6 @@ shared_ptr<TVMOperator> LogicalOperator::realize_tvm(int max_blocks) {
       db.get_fatbin(redis_key), db.get_block_dim(redis_key),
       db.get_grid_dim(redis_key), db.get_kernel_args(redis_key),
       db.get_kernel_name(redis_key));
-  high_resolution_clock::time_point t2 = high_resolution_clock::now();
-  auto dur = duration_cast<microseconds>(t2 - t1).count();
-  cerr << "TVM Op Instantiate ms: " << dur << endl;
 
   inject_kwargs(op);
 
@@ -281,13 +276,16 @@ shared_ptr<PhysicalOperator>
 LogicalOperator::realize(int max_blocks, cudnnHandle_t *handle,
                          cublasHandle_t *cublasHandle) {
   // TODO(simon): this should be moved to the eventual scheduler
+  if (preloaded) {
+    return realize_preloaded(max_blocks);
+  }
 
   if (type == "Conv") {
-    try {
-      return realize_tvm(max_blocks);
-    } catch (NoSuchOpException &e) {
-      return realize_cudnn(handle);
-    }
+    //    try {
+    return realize_tvm(max_blocks);
+    //    } catch (NoSuchOpException &e) {
+    //      return realize_cudnn(handle);
+    //    }
 
   } else if (type == "AveragePool" || type == "MaxPool" || type == "Sum" ||
              type == "Add" || type == "Relu" || type == "BatchNormalization" ||
@@ -309,6 +307,32 @@ LogicalOperator::realize(int max_blocks, cudnnHandle_t *handle,
     throw runtime_error("Can't realize logical operator");
   }
 }
+
+shared_ptr<PhysicalOperator>
+LogicalOperator::realize_preloaded(int max_blocks) {
+  if (type == "Conv") {
+    return preloaded_ops.at(max_blocks);
+  } else {
+    return preloaded_ops.at(0);
+  }
+}
+
+void LogicalOperator::preload(vector<int> possible_max_blocks,
+                              cudnnHandle_t *handle,
+                              cublasHandle_t *cublasHandle) {
+  if (type == "Conv") {
+    for (int block : possible_max_blocks) {
+      shared_ptr<PhysicalOperator> op = realize(block, handle, cublasHandle);
+      preloaded_ops.insert({block, op});
+    }
+  } else {
+    shared_ptr<PhysicalOperator> op = realize(0, handle, cublasHandle);
+    preloaded_ops.insert({0, op});
+  }
+
+  preloaded = true;
+}
+
 void ReshapeOperator::set_argument(KERNEL_ARG arg, CUdeviceptr ptr) {
   switch (arg) {
   case (INPUT):
