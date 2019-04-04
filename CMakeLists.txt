@@ -16,8 +16,9 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party)
 include(cmake/cuda.cmake)
 add_subdirectory(third_party/redox EXCLUDE_FROM_ALL)
 add_subdirectory(third_party/rapidjson)
-add_subdirectory(third_party/fmt)
+add_subdirectory(third_party/fmt EXCLUDE_FROM_ALL)
 add_subdirectory(proto)
+add_subdirectory(third_party/glog)
 
 
 set(CMAKE_BUILD_TYPE DEBUG)
@@ -34,8 +35,11 @@ add_executable(
 )
 
 target_link_libraries(${PROJECT_NAME}
-        proto ${PROTOBUF_LIBRARY} ${LIBUNWIND_LIBRARIES}
-        )
+        proto
+        ${PROTOBUF_LIBRARY}
+        ${LIBUNWIND_LIBRARIES}
+        glog::glog
+)
 
 
 ## CPU Only Libraries

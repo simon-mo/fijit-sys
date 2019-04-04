@@ -30,6 +30,10 @@
 #include "reporter.h"
 
 #include "cxxopts/cxxopts.hpp"
+#include <glog/logging.h>
+
+
+
 
 using namespace std;
 using namespace onnx;
@@ -60,6 +64,10 @@ void CUDART_CB print_time(cudaStream_t stream, cudaError_t status, void *data) {
 }
 
 int main(int argc, char *argv[]) {
+  google::InitGoogleLogging(argv[0]);
+  LOG(INFO) << "Found " << 3 << " cookies";
+
+
   GOOGLE_PROTOBUF_VERIFY_VERSION;
 
   cxxopts::Options options("fijit-sys", "FIJIT Inference Engine");
