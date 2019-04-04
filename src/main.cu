@@ -1,4 +1,5 @@
 #include "abstract_operators.h"
+#include "backtrace.h"
 #include "common_cuda.h"
 #include "cuda.h"
 #include "cuda_runtime_api.h"
@@ -34,6 +35,8 @@ using namespace std;
 using namespace onnx;
 using namespace google::protobuf::io;
 
+using namespace chrono;
+
 void parse_model(ModelProto &model, const char *model_path) {
   int fd = open(model_path, O_RDONLY);
   ZeroCopyInputStream *raw_input = new FileInputStream(fd);
@@ -48,6 +51,12 @@ void parse_model(ModelProto &model, const char *model_path) {
 void parse_input(TensorProto &input, string input_path) {
   fstream f(input_path, ios::in | ios::binary);
   input.ParseFromIstream(&f);
+}
+
+void CUDART_CB print_time(cudaStream_t stream, cudaError_t status, void *data) {
+  high_resolution_clock::time_point t1 = high_resolution_clock::now();
+  auto dur = t1.time_since_epoch();
+  printf("Time! %llu\n", dur.count());
 }
 
 int main(int argc, char *argv[]) {
@@ -65,6 +74,8 @@ int main(int argc, char *argv[]) {
       ("num-query", "Number of query per stream", cxxopts::value<int>()->default_value("1"))
       ("num-stream", "Number of stream", cxxopts::value<int>()->default_value("1"))
 
+      ("backtrace", "Print backtrace on crash")
+
       ("h, help", "Print help");
   // clang-format on
   auto result = options.parse(argc, argv);
@@ -73,6 +84,13 @@ int main(int argc, char *argv[]) {
     std::cout << options.help({"", "Group"}) << std::endl;
     exit(0);
   }
+
+  if (result.count("backtrace")) {
+    std::set_terminate([]() { backtrace(); });
+  }
+
+  vector<int> possible_blocks = {20, 40, 80};
+  printf("%d", possible_blocks.at(1000));
 
   const char *model_path = result["model"].as<string>().c_str();
   string input_path = result["input"].as<string>();
@@ -94,10 +112,6 @@ int main(int argc, char *argv[]) {
   cudnnCreate(&handle);
   cublasCreate(&cublasHandle);
 
-  //  cudaEvent_t start_of_world;
-  //  CHECK_CUDA(cudaEventCreate(&start_of_world));
-  //  CHECK_CUDA(cudaEventRecord(start_of_world, 0));
-
   shared_ptr<StaticMemoryManager> smm = make_shared<StaticMemoryManager>();
   shared_ptr<DynamicMemoryManager> dmm = make_shared<DynamicMemoryManager>();
   shared_ptr<ModelManager> model_manager = make_shared<ModelManager>(smm, dmm);
@@ -116,8 +130,6 @@ int main(int argc, char *argv[]) {
   auto executor = Executor(&cudaCtx);
   executor.register_queue(model_name, dispatch_queue);
   thread executor_thread([&]() { executor.start(); });
-
-  vector<int> possible_blocks = {20, 40, 80};
 
   auto generate_query = [&](int query_id) {
     query_id = 0; // TODO(simon): we are overriding qid to re-use memory
@@ -145,6 +157,10 @@ int main(int argc, char *argv[]) {
   }
 
   this_thread::sleep_for(1s);
+
+  cudaStream_t s;
+  cudaStreamCreate(&s);
+  CHECK_CUDA(cudaStreamAddCallback(s, print_time, nullptr, 0));
 
   CHECK_CUDA(cudaDeviceSynchronize());
 

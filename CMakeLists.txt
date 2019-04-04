@@ -20,6 +20,11 @@ add_subdirectory(third_party/fmt)
 add_subdirectory(proto)
 
 
+set(CMAKE_BUILD_TYPE DEBUG)
+include(cmake/FindLibunwind.cmake)
+
+
+
 ## Our Main Executable is fijit-sys binary
 add_executable(
         ${PROJECT_NAME}
@@ -29,7 +34,7 @@ add_executable(
 )
 
 target_link_libraries(${PROJECT_NAME}
-        proto ${PROTOBUF_LIBRARY}
+        proto ${PROTOBUF_LIBRARY} ${LIBUNWIND_LIBRARIES}
         )
 
 
@@ -39,7 +44,7 @@ add_library(fijit-lib SHARED
         src/kernel_db.cc
         src/common.h
         src/onnx_helper.h
-        src/onnx_helper.cc)
+        src/onnx_helper.cc src/backtrace.h)
 target_link_libraries(fijit-lib redox)
 target_link_libraries(${PROJECT_NAME} fijit-lib)
 target_compile_features(fijit-lib PUBLIC cxx_std_14)
