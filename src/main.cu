@@ -33,8 +33,6 @@
 #include <glog/logging.h>
 
 
-
-
 using namespace std;
 using namespace onnx;
 using namespace google::protobuf::io;
@@ -63,10 +61,11 @@ void CUDART_CB print_time(cudaStream_t stream, cudaError_t status, void *data) {
   printf("Time! %llu\n", dur.count());
 }
 
-int main(int argc, char *argv[]) {
-  google::InitGoogleLogging(argv[0]);
-  LOG(INFO) << "Found " << 3 << " cookies";
 
+int main(int argc, char *argv[]) {
+  FLAGS_logtostderr = 1;
+  FLAGS_colorlogtostderr = 1;
+  google::InitGoogleLogging(argv[0]);
 
   GOOGLE_PROTOBUF_VERIFY_VERSION;
 
@@ -98,7 +97,6 @@ int main(int argc, char *argv[]) {
   }
 
   vector<int> possible_blocks = {20, 40, 80};
-  printf("%d", possible_blocks.at(1000));
 
   const char *model_path = result["model"].as<string>().c_str();
   string input_path = result["input"].as<string>();
@@ -183,5 +181,6 @@ int main(int argc, char *argv[]) {
   float total_time;
   cudaEventElapsedTime(&total_time, events[0][0],
                        events.at(events.size() - 1)[1]);
+
   cout << "Total time: " << total_time << " ms";
 }

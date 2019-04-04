@@ -14,16 +14,13 @@ include_directories(${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party)
 
 include(cmake/cuda.cmake)
-add_subdirectory(third_party/redox EXCLUDE_FROM_ALL)
-add_subdirectory(third_party/rapidjson)
-add_subdirectory(third_party/fmt EXCLUDE_FROM_ALL)
-add_subdirectory(proto)
-add_subdirectory(third_party/glog)
-
-
-set(CMAKE_BUILD_TYPE DEBUG)
 include(cmake/FindLibunwind.cmake)
 
+add_subdirectory(proto)
+add_subdirectory(third_party/redox EXCLUDE_FROM_ALL)
+add_subdirectory(third_party/rapidjson)
+add_subdirectory(third_party/glog EXCLUDE_FROM_ALL)
+add_subdirectory(third_party/fmt)
 
 
 ## Our Main Executable is fijit-sys binary
