@@ -190,7 +190,7 @@ int main(int argc, char *argv[]) {
   }
 
   // Creating streams
-  vector<cudaStream_t> streams(num_stream);
+  vector<cudaStream_t> streams(0);
   for (int k = 0; k < num_stream; ++k) {
     cudaStream_t s;
     CHECK_CUDA(cudaStreamCreate(&s));
@@ -209,6 +209,7 @@ int main(int argc, char *argv[]) {
     CHECK_CUDA(cudaEventCreate(&ctx->end_time));
 
     CHECK_CUDA(cudaEventRecord(ctx->dispatch_time, timing_stream));
+    CHECK_CUDA(cudaEventSynchronize(ctx->dispatch_time));
     CHECK_CUDA(cudaEventRecord(ctx->start_time, s));
     for (int k = 0; k < ctx->physical_ops->size(); ++k) {
       ctx->physical_ops->at(k)->dispatch(s);
