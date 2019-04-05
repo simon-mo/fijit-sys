@@ -5,9 +5,9 @@
 #ifndef FIJIT_SYS_SCHEDULER_H
 #define FIJIT_SYS_SCHEDULER_H
 
-#include "model_manager.h"
-#include "concurrentqueue/concurrentqueue.h"
 #include "concurrentqueue/blockingconcurrentqueue.h"
+#include "concurrentqueue/concurrentqueue.h"
+#include "model_manager.h"
 #include <unordered_map>
 
 using namespace moodycamel;
@@ -30,8 +30,12 @@ public:
 protected:
   bool shouldStop = false;
 
-  unordered_map<string, shared_ptr<BlockingConcurrentQueue<shared_ptr<LogicalOperator>>>> logical_op_queues;
-  unordered_map<string, shared_ptr<BlockingConcurrentQueue<shared_ptr<PhysicalOperator>>>> physical_op_queues;
+  unordered_map<
+      string, shared_ptr<BlockingConcurrentQueue<shared_ptr<LogicalOperator>>>>
+      logical_op_queues;
+  unordered_map<
+      string, shared_ptr<BlockingConcurrentQueue<shared_ptr<PhysicalOperator>>>>
+      physical_op_queues;
   shared_ptr<int> total_resource = make_shared<int>(80);
 };
 

@@ -56,7 +56,6 @@ struct QueryContext {
   cudaEvent_t end_time;
 };
 
-
 class QPSBench {
 public:
   string input_name_;
@@ -84,9 +83,12 @@ public:
     model_manager_->register_model(model_, model_name_);
 
     // init scheduler
-    scheduler_queue_ = make_shared<BlockingConcurrentQueue<shared_ptr<LogicalOperator>>>();
-    scheduler_ = make_shared<StaticScheduler>(max_block, &cudaCtx_, &handle_, &cublasHandle_);
-    dispatch_queue_ = scheduler_->register_model_queue(model_name_, scheduler_queue_);
+    scheduler_queue_ =
+        make_shared<BlockingConcurrentQueue<shared_ptr<LogicalOperator>>>();
+    scheduler_ = make_shared<StaticScheduler>(max_block, &cudaCtx_, &handle_,
+                                              &cublasHandle_);
+    dispatch_queue_ =
+        scheduler_->register_model_queue(model_name_, scheduler_queue_);
     scheduler_thread_ = thread([&]() { scheduler_->start(); });
   }
 
@@ -94,7 +96,8 @@ public:
     const int stream_id = query_id % num_stream_;
     if (ctx_map_.find(stream_id) == ctx_map_.end()) {
       auto ops = model_manager_->instantiate_model(model_name_, stream_id);
-      model_manager_->register_input(model_name_, stream_id, input_, input_name_);
+      model_manager_->register_input(model_name_, stream_id, input_,
+                                     input_name_);
       ctx_map_.insert(make_pair(stream_id, ops));
 
       for (auto o : *ops) {
@@ -126,7 +129,6 @@ public:
     cuCtxDestroy(cudaCtx_);
   }
 
-
 private:
   CUcontext cudaCtx_;
   cudnnHandle_t handle_;
@@ -138,15 +140,17 @@ private:
   shared_ptr<StaticScheduler> scheduler_;
   thread scheduler_thread_;
 
-  shared_ptr<BlockingConcurrentQueue<shared_ptr<LogicalOperator>>> scheduler_queue_;
-  shared_ptr<BlockingConcurrentQueue<shared_ptr<PhysicalOperator>>> dispatch_queue_;
+  shared_ptr<BlockingConcurrentQueue<shared_ptr<LogicalOperator>>>
+      scheduler_queue_;
+  shared_ptr<BlockingConcurrentQueue<shared_ptr<PhysicalOperator>>>
+      dispatch_queue_;
 };
-
 
 int main(int argc, char *argv[]) {
   GOOGLE_PROTOBUF_VERIFY_VERSION;
 
-  cxxopts::Options options("qps_bench", "FIJIT Inference Engine benchmark (QPS)");
+  cxxopts::Options options("qps_bench",
+                           "FIJIT Inference Engine benchmark (QPS)");
   options.positional_help("[optional args]").show_positional_help();
   // clang-format off
   options.add_options()
@@ -178,7 +182,7 @@ int main(int argc, char *argv[]) {
   const int num_query_burst = result["num-query-burst"].as<int>();
   const int num_bursts = result["num-bursts"].as<int>();
   const int inter_burst_us = result["inter-burst-us"].as<int>();
-  const int num_query = num_query_burst * num_bursts;  // num queries per stream
+  const int num_query = num_query_burst * num_bursts; // num queries per stream
 
   QPSBench bench(model_path, input_path, max_block, input_name, num_stream);
   map<int, QueryContext> dispatches;
@@ -237,11 +241,13 @@ int main(int argc, char *argv[]) {
     cudaEventDestroy(start_time);
     cudaEventDestroy(complete_time);
 
-    printf("{\"stream_id\": %d, \"query_id\": %d, \"dispatch_time\": %.4f, \"run_time\": %.4f, \"total_time\": %.4f}\n",
-           q % num_stream, q, dispatch_time_ms, run_time_ms, dispatch_time_ms + run_time_ms);
+    printf("{\"stream_id\": %d, \"query_id\": %d, \"dispatch_time\": %.4f, "
+           "\"run_time\": %.4f, \"total_time\": %.4f}\n",
+           q % num_stream, q, dispatch_time_ms, run_time_ms,
+           dispatch_time_ms + run_time_ms);
   }
 
-   for (auto &stream : streams) {
-       cudaStreamDestroy(stream);
-   }
+  for (auto &stream : streams) {
+    cudaStreamDestroy(stream);
+  }
 }
