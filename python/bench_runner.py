@@ -65,7 +65,7 @@ def profile(bench_task: BenchTask):
     proc = subprocess.Popen(UTIL_CMD, stdout=subprocess.PIPE)
     bench_output = bench_task.bench()
     # print('---->\t'.join(bench_output.splitlines(True)))
-    time.sleep(1)
+    time.sleep(5)
     os.system('kill -15 ' + str(proc.pid))
     csv = proc.communicate()[0]
 
@@ -86,11 +86,13 @@ def profile(bench_task: BenchTask):
 def burst_bench(qps, num_streams, max_blocks, **kwargs):
     task = BenchFijit(qps, num_streams, max_blocks, 128, **kwargs)
     df, bench_output = profile(task)
-    ax = df.plot.line(x="timestamp", ylim=(0, 100))
-    ax.get_figure().savefig(os.path.join(PLOT_DST, "qps{}_ns{}_blocks{}.png".format(qps, num_streams, max_blocks)))
+    # ax = df.plot.line(x="timestamp", ylim=(0, 100))
+    # ax.get_figure().savefig(os.path.join(PLOT_DST, "qps{}_ns{}_blocks{}.png".format(qps, num_streams, max_blocks)))
     out_path = os.path.join(PLOT_DST, "qps{}_ns{}_blocks{}.log".format(qps, num_streams, max_blocks))
+    util_path = os.path.join(PLOT_DST, "qps{}_ns{}_blocks{}.utilization.log".format(qps, num_streams, max_blocks))
     with open(out_path, 'w') as f:
         f.write(bench_output)
+    df.to_csv(util_path)
 
 
 if __name__ == "__main__":
@@ -98,6 +100,11 @@ if __name__ == "__main__":
         os.makedirs(PLOT_DST)
 
     results = []
-    for qps in [4, 8, 16, 32, 64, 128, 256, 512, 1024]:
-        for (ns, mb) in [(1, 80), (2, 80), (2, 40), (4, 40), (4, 20), (8, 20), (16, 20), (32, 20)]:
-            burst_bench(qps, ns, mb, burst_batch_size=1)
+    for qps in [4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048]:
+        for ns in [1, 2, 4, 8, 16, 32, 64]:
+            for mb in [20, 40, 80]:
+                try:
+                    burst_bench(qps, ns, mb, burst_batch_size=1)
+                except Exception as e:
+                    print("Bummer! error with {}".format((qps, ns, mb)))
+                    print(e)
