@@ -6,3 +6,4 @@ include/
 *.swp
 .idea/
 cmake-build-debug-p3/
+.clion.source.upload.marker
