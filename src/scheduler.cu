@@ -58,12 +58,12 @@ void StaticScheduler::schedule() {
 
   auto num_models = logical_op_queues.size();
 
-  if (num_models * max_blocks > *total_resource) {
-    cerr << "StaticScheduler::schedule allocated resource exceeds current "
-            "total resource, skipping..."
-         << endl;
-    return;
-  }
+  // if (num_models * max_blocks > *total_resource) {
+  //   cerr << "StaticScheduler::schedule allocated resource exceeds current "
+  //           "total resource, skipping..."
+  //        << endl;
+  //   return;
+  // }
 
   for (auto &entry : logical_op_queues) {
     string model_name = entry.first;

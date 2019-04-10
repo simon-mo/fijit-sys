@@ -42,8 +42,11 @@ int main(int argc, char *argv[]) {
       ("max-block", "Max block for TVM ops", cxxopts::value<int>())
       ("input-name", "Override input tensor name", cxxopts::value<string>())
 
+      ("qps", "Query per seconds", cxxopts::value<int>()->default_value("10"))
       ("num-query", "Number of query per stream", cxxopts::value<int>()->default_value("1"))
       ("num-stream", "Number of stream", cxxopts::value<int>()->default_value("1"))
+
+      ("out", "Metric file path", cxxopts::value<string>())
 
       ("backtrace", "Print backtrace on crash")
 
@@ -65,20 +68,26 @@ int main(int argc, char *argv[]) {
   string input_path = result["input"].as<string>();
   string input_name = result["input-name"].as<string>();
 
+  string out_metric_path = result["out"].as<string>();
+
   int max_block = result["max-block"].as<int>();
 
   int num_query = result["num-query"].as<int>();
   int num_stream = result["num-stream"].as<int>();
+  int qps = result["qps"].as<int>();
 
   vector<int> possible_blocks = {20, 40, 80};
   map<string, int> sched_config = {{"max_block", max_block}};
 
   Fijit fijit;
 
-  fijit.add_model(model_path, 1, possible_blocks);
+  for (size_t i = 0; i < num_stream; i++) {
+    fijit.add_model(model_path, fmt::format("model-{}", i), possible_blocks);
+  }
+
   fijit.add_query(input_path, input_name);
   fijit.use_scheduler("StaticScheduler", sched_config);
-  fijit.use_workload(1, 1);
+  fijit.use_workload(qps, num_query);
 
   fijit.prepare();
   fijit.infer();
@@ -94,6 +103,6 @@ int main(int argc, char *argv[]) {
       "Duration {}us",
       chrono::duration_cast<chrono::microseconds>(dur).count());
 
-  ofstream metric_file("metric.json");
+  ofstream metric_file(out_metric_path);
   metric_file << report_chrome_trace();
 }

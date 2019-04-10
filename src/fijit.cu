@@ -10,17 +10,15 @@
 using namespace std;
 using namespace onnx;
 
-void Fijit::add_model(string path, int num_replica,
+void Fijit::add_model(string path, string model_name,
                       vector<int> possible_blocks_config) {
   ModelProto model;
   parse_model(model, path);
 
-  CHECK(num_replica == 1);
-
-  for (size_t i = 0; i < num_replica; i++) {
-    model_protos.insert({path, model});
-    model_manager->register_model(model, path, possible_blocks_config);
-  }
+  CHECK(model_protos.find(model_name) == model_protos.end());
+  LOG(INFO) << fmt::format("Adding model {}", model_name);
+  model_protos.insert({model_name, model});
+  model_manager->register_model(model, model_name, possible_blocks_config);
 }
 
 void Fijit::add_query(string path, string input_name) {
@@ -38,6 +36,7 @@ void Fijit::use_scheduler(string scheduler_name, map<string, int> config) {
 
   scheduler =
       make_shared<StaticScheduler>(max_block, &cudaCtx, &handle, &cublasHandle);
+  executor = make_shared<Executor>(&cudaCtx);
 }
 
 void Fijit::use_workload(int qps_, int total_query_) {
@@ -65,21 +64,25 @@ void Fijit::prepare() {
   fijit_prepared = true;
 
   // So far we support one model one replica and one input
-  CHECK(model_protos.size() == 1);
+  for (auto &kv : model_protos) {
+    string model_name = kv.first;
+    LOG(INFO) << fmt::format("Preparing input for model {}", model_name);
 
-  auto first_model_name = model_protos.begin()->first;
+    auto scheduler_queue =
+        make_shared<ConcurrentQueue<vector<LogicalOperator>>>();
+    auto dispatch_queue =
+        scheduler->register_model_queue(model_name, scheduler_queue);
 
-  scheduler_queue = make_shared<ConcurrentQueue<vector<LogicalOperator>>>();
-  dispatch_queue =
-      scheduler->register_model_queue(first_model_name, scheduler_queue);
+    sched_queues.insert({model_name, scheduler_queue});
+    exec_queues.insert({model_name, dispatch_queue});
+    executor->register_queue(model_name, dispatch_queue);
 
-  executor = make_shared<Executor>(&cudaCtx);
-  executor->register_queue(first_model_name, dispatch_queue);
+    shared_ptr<vector<LogicalOperator>> queries = generate_query(model_name);
+    model_to_queries.insert({model_name, queries});
+  }
 
   scheduler_thread = thread([&]() { scheduler->start(); });
   executor_thread = thread([&]() { executor->start(); });
-
-  queries = generate_query(first_model_name);
 }
 
 void Fijit::infer() {
@@ -91,41 +94,61 @@ void Fijit::infer() {
   for (size_t i = 0; i < total_query; i++) {
     auto start = chrono::high_resolution_clock::now();
 
-    scheduler_queue->enqueue(*queries);
+    for (auto &kv : sched_queues) {
+      auto queries = model_to_queries.at(kv.first);
+      kv.second->enqueue(*queries);
+    }
+
     auto end = chrono::high_resolution_clock::now();
     auto processing_time = end - start;
     auto time_left_to_sleep = sleep_time_ns - processing_time;
-    CHECK(time_left_to_sleep > chrono::nanoseconds(1));
 
-    LOG(INFO) << fmt::format(
-        "Sleeping for {}us",
-        chrono::duration_cast<chrono::microseconds>(time_left_to_sleep)
-            .count());
+    // LOG(INFO) << fmt::format(
+    //     "Sleeping for {}us",
+    //     chrono::duration_cast<chrono::microseconds>(time_left_to_sleep)
+    //         .count()
+    //         );
 
-    std::this_thread::sleep_for(time_left_to_sleep);
+    // if (time_left_to_sleep > chrono::nanoseconds(1)) {
+    //    std::this_thread::sleep_for(time_left_to_sleep);
+    // }
+
+    // CHECK(time_left_to_sleep > chrono::nanoseconds(1));
   }
 
   std::this_thread::sleep_for(0.5s);
-
-  auto wait_for_queue_sched = [](decltype(scheduler_queue) q) {
-    for (size_t i = 0; i < 2; i++) {
-      while (q->size_approx() != 0) {
-        std::this_thread::sleep_for(10ms);
-      }
-    }
-  };
-  wait_for_queue_sched(scheduler_queue);
-
-  auto wait_for_queue_exec = [](decltype(dispatch_queue) q) {
-    for (size_t i = 0; i < 2; i++) {
-      while (q->size_approx() != 0) {
-        std::this_thread::sleep_for(10ms);
-      }
-    }
-  };
-  wait_for_queue_exec(dispatch_queue);
+  wait_for_queues();
 
   CHECK_CUDA(cudaDeviceSynchronize());
+}
+
+// TODO(simon): Templatize this!
+void wait_for_queue(SchedQueue q) {
+  for (size_t i = 0; i < 2; i++) {
+    while (q->size_approx() != 0) {
+      std::this_thread::sleep_for(10ms);
+    }
+  }
+}
+
+void wait_for_queue(ExecQueue q) {
+  for (size_t i = 0; i < 2; i++) {
+    while (q->size_approx() != 0) {
+      // LOG(INFO) << fmt::format("ExecQueue size {}", q->size_approx());
+      std::this_thread::sleep_for(10ms);
+    }
+  }
+}
+
+void Fijit::wait_for_queues() {
+  for (auto &kv : sched_queues) {
+    LOG(INFO) << fmt::format("Waiting for sched queue {} to flush", kv.first);
+    wait_for_queue(kv.second);
+  }
+  for (auto &kv : exec_queues) {
+    LOG(INFO) << fmt::format("Waiting for exec queue {} to flush", kv.first);
+    wait_for_queue(kv.second);
+  }
 }
 
 Fijit::Fijit() {

@@ -16,7 +16,6 @@ void Executor::register_queue(string model_name, PhysicalOpQueue queue) {
   cudaStream_t s;
   cudaStreamCreate(&s);
   ExecutorCtx ctx = {model_name, s, queue};
-
   executor_queues.emplace_back(ctx);
 }
 
@@ -37,15 +36,17 @@ void Executor::start() {
 
     for (ExecutorCtx &ctx_struct : executor_queues) {
       while (ctx_struct.queue->try_dequeue(op)) {
-        string op_name = op->get_name();
-        events_registrar.record(EventType::BEGIN, EventSource::Executor,
-                                op_name);
+        string op_name =
+            fmt::format("{}-{}", ctx_struct.model_name, op->get_name());
+        // events_registrar.record(EventType::BEGIN, EventSource::Executor,
+        //                         op_name);
         events_registrar.record(EventType::BEGIN, EventSource::GPU, op_name,
                                 ctx_struct.stream);
         auto events = op->dispatch(ctx_struct.stream);
         events_registrar.record(EventType::END, EventSource::GPU, op_name,
                                 ctx_struct.stream);
-        events_registrar.record(EventType::END, EventSource::Executor, op_name);
+        // events_registrar.record(EventType::END, EventSource::Executor,
+        // op_name);
       }
     }
   }
