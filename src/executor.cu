@@ -7,6 +7,9 @@
 #include <thread>
 #include <tuple>
 
+#include "fmt/core.h"
+#include "glog/logging.h"
+
 using namespace std;
 
 void Executor::register_queue(string model_name, PhysicalOpQueue queue) {
@@ -34,8 +37,15 @@ void Executor::start() {
 
     for (ExecutorCtx &ctx_struct : executor_queues) {
       while (ctx_struct.queue->try_dequeue(op)) {
+        string op_name = op->get_name();
+        events_registrar.record(EventType::BEGIN, EventSource::Executor,
+                                op_name);
+        events_registrar.record(EventType::BEGIN, EventSource::GPU, op_name,
+                                ctx_struct.stream);
         auto events = op->dispatch(ctx_struct.stream);
-        events_registrar.insert(ctx_struct.model_name, events);
+        events_registrar.record(EventType::END, EventSource::GPU, op_name,
+                                ctx_struct.stream);
+        events_registrar.record(EventType::END, EventSource::Executor, op_name);
       }
     }
   }

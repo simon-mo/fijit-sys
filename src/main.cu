@@ -9,7 +9,7 @@
 #include <string>
 #include <thread>
 
-#include "fmt/core.h"
+#include "fmt/ostream.h"
 
 #include "reporter.h"
 
@@ -78,19 +78,22 @@ int main(int argc, char *argv[]) {
   fijit.add_model(model_path, 1, possible_blocks);
   fijit.add_query(input_path, input_name);
   fijit.use_scheduler("StaticScheduler", sched_config);
-  fijit.use_workload(10, 10);
+  fijit.use_workload(1, 1);
 
   fijit.prepare();
   fijit.infer();
 
-  auto events =
-      EventRegistrar::get_global_event_registrar().get_events(model_path);
+  auto events = EventRegistrar::get_global_event_registrar().get_events();
 
-  cout << "Total number of events " << events.size() << endl;
+  LOG(INFO) << fmt::format("Total number of events {}", events.size());
+  LOG(INFO) << fmt::format("First event {}", events[0]);
+  LOG(INFO) << fmt::format("Last event {}", events[events.size() - 1]);
+  auto dur =
+      chrono::nanoseconds(events[events.size() - 1].ts_ns - events[0].ts_ns);
+  LOG(INFO) << fmt::format(
+      "Duration {}us",
+      chrono::duration_cast<chrono::microseconds>(dur).count());
 
-  float total_time;
-  cudaEventElapsedTime(&total_time, events[0][0],
-                       events.at(events.size() - 1)[1]);
-
-  cout << "Total time: " << total_time << " ms";
+  ofstream metric_file("metric.json");
+  metric_file << report_chrome_trace();
 }

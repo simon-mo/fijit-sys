@@ -1,16 +1,20 @@
-#include "cuda.h"
+#include "reporter.h"
+
 #include "fmt/core.h"
+
 #include "rapidjson/document.h"
 #include "rapidjson/stringbuffer.h"
 #include "rapidjson/writer.h"
-#include "reporter.h"
+
+#include "events.h"
+
+#include <chrono>
 
 using namespace std;
 using namespace rapidjson;
+using namespace chrono;
 
-string ChromeTraceReporter::report() { return report(1); }
-
-string ChromeTraceReporter::report(int tid) {
+string report_chrome_trace(void) {
   /*
    *   //  [
   //  { "pid":1, "tid":1, "ts":87705, "dur":956189, "ph":"X", "name":"Jambase",
@@ -21,33 +25,30 @@ string ChromeTraceReporter::report(int tid) {
   //  "name":"DoThings", "args":{ "ms":121.6 } }
   //  ]
    */
+
+  vector<EventEntry> entries =
+      EventRegistrar::get_global_event_registrar().get_events();
+
   Document document;
   Document::AllocatorType &allocator = document.GetAllocator();
 
   document.SetArray();
 
-  for (int k = 0; k < physical_ops->size(); ++k) {
-
-    float duration, start_time;
-    cudaEvent_t start = events_collection->at(k)[0];
-    cudaEvent_t end = events_collection->at(k)[1];
-
-    cudaEventElapsedTime(&duration, start, end);
-    cudaEventElapsedTime(&start_time, start_of_the_world, start);
-
-    string op_name = physical_ops->at(k)->get_name();
-    string formatted_op_name = fmt::format("{}-{}", op_name, k);
-
+  for (EventEntry &e : entries) {
     Value name;
-    name.SetString(formatted_op_name.c_str(), formatted_op_name.size(),
-                   allocator);
+    name.SetString(e.name.c_str(), e.name.size(), allocator);
+
+    Value event_type;
+    string event_str(1, static_cast<char>(e.type));
+    event_type.SetString(event_str.c_str(), event_str.size(), allocator);
+
+    auto timestamp = duration_cast<microseconds>(nanoseconds(e.ts_ns));
 
     Value item(kObjectType);
     item.AddMember("pid", Value(1), allocator);
-    item.AddMember("tid", Value(tid), allocator);
-    item.AddMember("ts", start_time, allocator);
-    item.AddMember("dur", duration, allocator);
-    item.AddMember("ph", Value("X"), allocator);
+    item.AddMember("tid", Value(static_cast<int>(e.source)), allocator);
+    item.AddMember("ts", timestamp.count(), allocator);
+    item.AddMember("ph", event_type, allocator);
     item.AddMember("name", name, allocator);
     document.PushBack(item.Move(), allocator);
   }
@@ -57,11 +58,4 @@ string ChromeTraceReporter::report(int tid) {
   document.Accept(writer);
 
   return buffer.GetString();
-}
-
-string TotalTimeReporter::report() {
-  float total_time;
-  cudaEventElapsedTime(&total_time, start_of_the_world,
-                       events_collection->at(events_collection->size() - 1)[1]);
-  return fmt::format("Total time: {} ms", total_time);
 }
