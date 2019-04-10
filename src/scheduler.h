@@ -10,15 +10,16 @@
 #include "concurrentqueue/concurrentqueue.h"
 
 #include <unordered_map>
+#include <vector>
 
 using namespace moodycamel;
+using namespace std;
 
 class Scheduler {
 public:
   shared_ptr<ConcurrentQueue<shared_ptr<PhysicalOperator>>>
-  register_model_queue(
-      string model_name,
-      shared_ptr<ConcurrentQueue<shared_ptr<LogicalOperator>>> q);
+  register_model_queue(string model_name,
+                       shared_ptr<ConcurrentQueue<vector<LogicalOperator>>> q);
 
   void register_total_resource(shared_ptr<int> total_resource_estimate);
 
@@ -31,8 +32,7 @@ public:
 protected:
   bool shouldStop = false;
 
-  unordered_map<string,
-                shared_ptr<ConcurrentQueue<shared_ptr<LogicalOperator>>>>
+  unordered_map<string, shared_ptr<ConcurrentQueue<vector<LogicalOperator>>>>
       logical_op_queues;
   unordered_map<string,
                 shared_ptr<ConcurrentQueue<shared_ptr<PhysicalOperator>>>>

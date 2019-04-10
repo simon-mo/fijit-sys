@@ -4,13 +4,21 @@
 #include "onnx_helper.h"
 
 #include "onnx.pb.h"
+#include <fcntl.h>
+#include <fstream>
 #include <memory>
 #include <numeric>
 #include <string>
+#include <sys/stat.h>
+#include <unistd.h>
 #include <unordered_map>
+
+#include "google/protobuf/io/coded_stream.h"
+#include <google/protobuf/io/zero_copy_stream_impl.h>
 
 using namespace std;
 using namespace onnx;
+using namespace google::protobuf::io;
 
 shared_ptr<unordered_map<string, ValueInfoProto>>
 traverse_shapes(GraphProto g) {
@@ -45,4 +53,20 @@ size_t get_size(ValueInfoProto &info) {
     num_elems *= shape.dim_value();
   }
   return num_elems;
+}
+
+void parse_model(ModelProto &model, const char *model_path) {
+  int fd = open(model_path, O_RDONLY);
+  ZeroCopyInputStream *raw_input = new FileInputStream(fd);
+  CodedInputStream *coded_input = new CodedInputStream(raw_input);
+  coded_input->SetTotalBytesLimit(671088640, 167108860);
+
+  model.ParseFromCodedStream(coded_input);
+
+  close(fd);
+}
+
+void parse_input(TensorProto &input, string input_path) {
+  fstream f(input_path, ios::in | ios::binary);
+  input.ParseFromIstream(&f);
 }

@@ -11,13 +11,14 @@
 #include <memory>
 #include <thread>
 
+#include <glog/logging.h>
+
 using namespace std;
 using namespace chrono;
 
 shared_ptr<ConcurrentQueue<shared_ptr<PhysicalOperator>>>
 Scheduler::register_model_queue(
-    string model_name,
-    shared_ptr<ConcurrentQueue<shared_ptr<LogicalOperator>>> q) {
+    string model_name, shared_ptr<ConcurrentQueue<vector<LogicalOperator>>> q) {
   logical_op_queues.insert({model_name, q});
 
   shared_ptr<ConcurrentQueue<shared_ptr<PhysicalOperator>>> ops_q =
@@ -69,18 +70,15 @@ void StaticScheduler::schedule() {
     shared_ptr<ConcurrentQueue<shared_ptr<PhysicalOperator>>> dispatch_queue =
         physical_op_queues.at(model_name);
 
-    shared_ptr<ConcurrentQueue<shared_ptr<LogicalOperator>>> op_queue =
+    shared_ptr<ConcurrentQueue<vector<LogicalOperator>>> op_queue =
         entry.second;
 
-    shared_ptr<LogicalOperator> op;
-    while (op_queue->try_dequeue(op)) {
-      shared_ptr<PhysicalOperator> physical_op =
-          op->realize(max_blocks, handle, cublasHandle);
-
-      bool success = dispatch_queue->enqueue(physical_op);
-
-      if (!success) {
-        cerr << "Failed to enqueue operation to dispatch queue" << endl;
+    vector<LogicalOperator> model_ops;
+    while (op_queue->try_dequeue(model_ops)) {
+      for (auto &op : model_ops) {
+        shared_ptr<PhysicalOperator> physical_op =
+            op.realize(max_blocks, handle, cublasHandle);
+        CHECK(dispatch_queue->enqueue(physical_op));
       }
     }
   }

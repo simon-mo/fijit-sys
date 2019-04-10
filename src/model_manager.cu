@@ -27,14 +27,14 @@ void ModelManager::register_model(ModelProto model_proto, string model_name) {
   }
 }
 
-shared_ptr<vector<shared_ptr<LogicalOperator>>>
+shared_ptr<vector<LogicalOperator>>
 ModelManager::instantiate_model(string model_name, int query_id) {
   assert(storage.find(model_name) != storage.end());
 
   ModelProto proto = storage.at(model_name);
   shape_map_ptr shape = shape_maps.at(model_name);
 
-  vector<shared_ptr<LogicalOperator>> op_queue(0);
+  vector<LogicalOperator> op_queue;
 
   set<string> static_data;
   for (auto i : proto.graph().initializer()) {
@@ -42,7 +42,7 @@ ModelManager::instantiate_model(string model_name, int query_id) {
   }
 
   for (auto node : proto.graph().node()) {
-    shared_ptr<LogicalOperator> op = make_shared<LogicalOperator>(node, shape);
+    LogicalOperator op(node, shape);
 
     for (auto inp : node.input()) {
 
@@ -56,11 +56,11 @@ ModelManager::instantiate_model(string model_name, int query_id) {
         dmm->register_placeholder(key, shape->at(inp));
         CUdeviceptr ptr = dmm->get_device_ptr(key);
 
-        op->set_argument(INPUT, ptr);
+        op.set_argument(INPUT, ptr);
       } else {
         StaticBufferKey key{.model_name = model_name, .tensor_name = inp};
         CUdeviceptr ptr = smm->get_device_ptr(key);
-        op->set_argument(DATA, ptr);
+        op.set_argument(DATA, ptr);
       }
     }
 
@@ -72,7 +72,7 @@ ModelManager::instantiate_model(string model_name, int query_id) {
       dmm->register_placeholder(key, shape->at(out));
       CUdeviceptr ptr = dmm->get_device_ptr(key);
 
-      op->set_argument(OUTPUT, ptr);
+      op.set_argument(OUTPUT, ptr);
     }
 
     op_queue.push_back(op);

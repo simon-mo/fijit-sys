@@ -18,13 +18,6 @@
 #include <string>
 #include <thread>
 
-#include <fcntl.h>
-#include <sys/stat.h>
-#include <unistd.h>
-
-#include "google/protobuf/io/coded_stream.h"
-#include <google/protobuf/io/zero_copy_stream_impl.h>
-
 #include "fmt/core.h"
 
 #include "reporter.h"
@@ -32,35 +25,22 @@
 #include "cxxopts/cxxopts.hpp"
 #include <glog/logging.h>
 
-
 using namespace std;
 using namespace onnx;
-using namespace google::protobuf::io;
 
 using namespace chrono;
 
-void parse_model(ModelProto &model, const char *model_path) {
-  int fd = open(model_path, O_RDONLY);
-  ZeroCopyInputStream *raw_input = new FileInputStream(fd);
-  CodedInputStream *coded_input = new CodedInputStream(raw_input);
-  coded_input->SetTotalBytesLimit(671088640, 167108860);
+// void CUDART_CB print_time(cudaStream_t stream, cudaError_t status, void
+// *data) {
+//  high_resolution_clock::time_point t1 = high_resolution_clock::now();
+//  auto dur = t1.time_since_epoch();
+//  printf("Time! %llu\n", dur.count());
+//}
 
-  model.ParseFromCodedStream(coded_input);
-
-  close(fd);
-}
-
-void parse_input(TensorProto &input, string input_path) {
-  fstream f(input_path, ios::in | ios::binary);
-  input.ParseFromIstream(&f);
-}
-
-void CUDART_CB print_time(cudaStream_t stream, cudaError_t status, void *data) {
-  high_resolution_clock::time_point t1 = high_resolution_clock::now();
-  auto dur = t1.time_since_epoch();
-  printf("Time! %llu\n", dur.count());
-}
-
+//
+//  cudaStream_t s;
+//  cudaStreamCreate(&s);
+//  CHECK_CUDA(cudaStreamAddCallback(s, print_time, nullptr, 0));
 
 int main(int argc, char *argv[]) {
   FLAGS_logtostderr = 1;
@@ -96,8 +76,6 @@ int main(int argc, char *argv[]) {
     std::set_terminate([]() { backtrace(); });
   }
 
-  vector<int> possible_blocks = {20, 40, 80};
-
   const char *model_path = result["model"].as<string>().c_str();
   string input_path = result["input"].as<string>();
   int max_block = result["max-block"].as<int>();
@@ -105,78 +83,81 @@ int main(int argc, char *argv[]) {
   int num_query = result["num-query"].as<int>();
   int num_stream = result["num-stream"].as<int>();
 
-  ModelProto model;
-  parse_model(model, model_path);
-
-  TensorProto input;
-  parse_input(input, input_path);
-
-  CUcontext cudaCtx = cuda_init();
-  cudnnHandle_t handle;
-  cublasHandle_t cublasHandle;
-
-  cudnnCreate(&handle);
-  cublasCreate(&cublasHandle);
-
-  shared_ptr<StaticMemoryManager> smm = make_shared<StaticMemoryManager>();
-  shared_ptr<DynamicMemoryManager> dmm = make_shared<DynamicMemoryManager>();
-  shared_ptr<ModelManager> model_manager = make_shared<ModelManager>(smm, dmm);
-
-  string model_name = "default-model";
-  model_manager->register_model(model, model_name);
-
-  shared_ptr<ConcurrentQueue<shared_ptr<LogicalOperator>>> scheduler_queue =
-      make_shared<ConcurrentQueue<shared_ptr<LogicalOperator>>>();
-
-  auto scheduler = StaticScheduler(max_block, &cudaCtx, &handle, &cublasHandle);
-  shared_ptr<ConcurrentQueue<shared_ptr<PhysicalOperator>>> dispatch_queue =
-      scheduler.register_model_queue(model_name, scheduler_queue);
-  thread scheduler_thread([&]() { scheduler.start(); });
-
-  auto executor = Executor(&cudaCtx);
-  executor.register_queue(model_name, dispatch_queue);
-  thread executor_thread([&]() { executor.start(); });
-
-  auto generate_query = [&](int query_id) {
-    query_id = 0; // TODO(simon): we are overriding qid to re-use memory
-    shared_ptr<vector<shared_ptr<LogicalOperator>>> ops =
-        model_manager->instantiate_model(model_name, query_id);
-
-    for (int i = 0; i < ops->size(); ++i) {
-      ops->at(i)->preload(possible_blocks, &handle, &cublasHandle);
-    }
-
-    model_manager->register_input(model_name, query_id, input, input_name);
-
-    for (auto o : *ops) {
-      bool enqueue_result = scheduler_queue->enqueue(o);
-      if (!enqueue_result) {
-        cerr << "enqueued failed" << endl;
-      }
-    }
-  };
-
-  for (int j = 0; j < num_query; ++j) {
-    for (int i = 0; i < num_stream; ++i) {
-      generate_query(j * num_stream + i);
-    }
-  }
-
-  this_thread::sleep_for(1s);
-
-  cudaStream_t s;
-  cudaStreamCreate(&s);
-  CHECK_CUDA(cudaStreamAddCallback(s, print_time, nullptr, 0));
-
-  CHECK_CUDA(cudaDeviceSynchronize());
-
-  auto events =
-      EventRegistrar::get_global_event_registrar().get_events(model_name);
-
-  executor.stop();
-  scheduler.stop();
-  scheduler_thread.join();
-  executor_thread.join();
+  vector<int> possible_blocks = {20, 40, 80};
+  //  vector<int> possible_blocks = {20, 40, 80};
+  //
+  //  ModelProto model;
+  //  parse_model(model, model_path);
+  //
+  //  TensorProto input;
+  //  parse_input(input, input_path);
+  //
+  //  CUcontext cudaCtx = cuda_init();
+  //  cudnnHandle_t handle;
+  //  cublasHandle_t cublasHandle;
+  //
+  //  cudnnCreate(&handle);
+  //  cublasCreate(&cublasHandle);
+  //
+  //  shared_ptr<StaticMemoryManager> smm = make_shared<StaticMemoryManager>();
+  //  shared_ptr<DynamicMemoryManager> dmm =
+  //  make_shared<DynamicMemoryManager>(); shared_ptr<ModelManager>
+  //  model_manager = make_shared<ModelManager>(smm, dmm);
+  //
+  //  string model_name = "default-model";
+  //  model_manager->register_model(model, model_name);
+  //
+  //  shared_ptr<ConcurrentQueue<vector<LogicalOperator>>> scheduler_queue =
+  //      make_shared<ConcurrentQueue<vector<LogicalOperator>>>();
+  //
+  //  auto scheduler = StaticScheduler(max_block, &cudaCtx, &handle,
+  //  &cublasHandle); shared_ptr<ConcurrentQueue<shared_ptr<PhysicalOperator>>>
+  //  dispatch_queue =
+  //      scheduler.register_model_queue(model_name, scheduler_queue);
+  //  thread scheduler_thread([&]() { scheduler.start(); });
+  //
+  //  auto executor = Executor(&cudaCtx);
+  //  executor.register_queue(model_name, dispatch_queue);
+  //  thread executor_thread([&]() { executor.start(); });
+  //
+  //  auto generate_query = [&](int query_id) {
+  //    query_id = 0; // TODO(simon): we are overriding qid to re-use memory
+  //    shared_ptr<vector<LogicalOperator>> ops =
+  //        model_manager->instantiate_model(model_name, query_id);
+  //
+  //    for (int i = 0; i < ops->size(); ++i) {
+  //      ops->at(i).preload(possible_blocks, &handle, &cublasHandle);
+  //    }
+  //
+  //    model_manager->register_input(model_name, query_id, input, input_name);
+  //
+  //    return ops;
+  //  };
+  //
+  //
+  //  vector<shared_ptr<vector<LogicalOperator>>> queries;
+  //  for (int j = 0; j < num_query; ++j) {
+  //    for (int i = 0; i < num_stream; ++i) {
+  //      queries.push_back(generate_query(j * num_stream + i));
+  //    }
+  //  }
+  //
+  //  for (auto& ops: queries) {
+  //    CHECK(scheduler_queue->enqueue(*ops));
+  //  }
+  //
+  //  this_thread::sleep_for(1s);
+  //
+  //
+  //  CHECK_CUDA(cudaDeviceSynchronize());
+  //
+  //  auto events =
+  //      EventRegistrar::get_global_event_registrar().get_events(model_name);
+  //
+  //  executor.stop();
+  //  scheduler.stop();
+  //  scheduler_thread.join();
+  //  executor_thread.join();
 
   float total_time;
   cudaEventElapsedTime(&total_time, events[0][0],

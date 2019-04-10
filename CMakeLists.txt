@@ -87,7 +87,8 @@ add_library(cuda_lib STATIC
         src/executor.cu
         src/events.h
         src/events.cu
-        )
+        src/fijit.h
+        src/fijit.cu)
 
 target_link_libraries(cuda_lib
         cuda_common
