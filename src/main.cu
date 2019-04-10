@@ -1,16 +1,7 @@
-#include "abstract_operators.h"
 #include "backtrace.h"
 #include "common_cuda.h"
-#include "cuda.h"
-#include "cuda_runtime_api.h"
-#include "cudnn.h"
-#include "executor.h"
-#include "memory_manager.h"
-#include "model_manager.h"
-#include "onnx_helper.h"
-#include "operators.h"
-#include "proto/onnx.pb.h"
-#include "scheduler.h"
+#include "events.h"
+#include "fijit.h"
 #include <chrono>
 #include <fstream>
 #include <iostream>
@@ -29,13 +20,6 @@ using namespace std;
 using namespace onnx;
 
 using namespace chrono;
-
-// void CUDART_CB print_time(cudaStream_t stream, cudaError_t status, void
-// *data) {
-//  high_resolution_clock::time_point t1 = high_resolution_clock::now();
-//  auto dur = t1.time_since_epoch();
-//  printf("Time! %llu\n", dur.count());
-//}
 
 //
 //  cudaStream_t s;
@@ -76,88 +60,33 @@ int main(int argc, char *argv[]) {
     std::set_terminate([]() { backtrace(); });
   }
 
-  const char *model_path = result["model"].as<string>().c_str();
+  string model_path = result["model"].as<string>();
+
   string input_path = result["input"].as<string>();
-  int max_block = result["max-block"].as<int>();
   string input_name = result["input-name"].as<string>();
+
+  int max_block = result["max-block"].as<int>();
+
   int num_query = result["num-query"].as<int>();
   int num_stream = result["num-stream"].as<int>();
 
   vector<int> possible_blocks = {20, 40, 80};
-  //  vector<int> possible_blocks = {20, 40, 80};
-  //
-  //  ModelProto model;
-  //  parse_model(model, model_path);
-  //
-  //  TensorProto input;
-  //  parse_input(input, input_path);
-  //
-  //  CUcontext cudaCtx = cuda_init();
-  //  cudnnHandle_t handle;
-  //  cublasHandle_t cublasHandle;
-  //
-  //  cudnnCreate(&handle);
-  //  cublasCreate(&cublasHandle);
-  //
-  //  shared_ptr<StaticMemoryManager> smm = make_shared<StaticMemoryManager>();
-  //  shared_ptr<DynamicMemoryManager> dmm =
-  //  make_shared<DynamicMemoryManager>(); shared_ptr<ModelManager>
-  //  model_manager = make_shared<ModelManager>(smm, dmm);
-  //
-  //  string model_name = "default-model";
-  //  model_manager->register_model(model, model_name);
-  //
-  //  shared_ptr<ConcurrentQueue<vector<LogicalOperator>>> scheduler_queue =
-  //      make_shared<ConcurrentQueue<vector<LogicalOperator>>>();
-  //
-  //  auto scheduler = StaticScheduler(max_block, &cudaCtx, &handle,
-  //  &cublasHandle); shared_ptr<ConcurrentQueue<shared_ptr<PhysicalOperator>>>
-  //  dispatch_queue =
-  //      scheduler.register_model_queue(model_name, scheduler_queue);
-  //  thread scheduler_thread([&]() { scheduler.start(); });
-  //
-  //  auto executor = Executor(&cudaCtx);
-  //  executor.register_queue(model_name, dispatch_queue);
-  //  thread executor_thread([&]() { executor.start(); });
-  //
-  //  auto generate_query = [&](int query_id) {
-  //    query_id = 0; // TODO(simon): we are overriding qid to re-use memory
-  //    shared_ptr<vector<LogicalOperator>> ops =
-  //        model_manager->instantiate_model(model_name, query_id);
-  //
-  //    for (int i = 0; i < ops->size(); ++i) {
-  //      ops->at(i).preload(possible_blocks, &handle, &cublasHandle);
-  //    }
-  //
-  //    model_manager->register_input(model_name, query_id, input, input_name);
-  //
-  //    return ops;
-  //  };
-  //
-  //
-  //  vector<shared_ptr<vector<LogicalOperator>>> queries;
-  //  for (int j = 0; j < num_query; ++j) {
-  //    for (int i = 0; i < num_stream; ++i) {
-  //      queries.push_back(generate_query(j * num_stream + i));
-  //    }
-  //  }
-  //
-  //  for (auto& ops: queries) {
-  //    CHECK(scheduler_queue->enqueue(*ops));
-  //  }
-  //
-  //  this_thread::sleep_for(1s);
-  //
-  //
-  //  CHECK_CUDA(cudaDeviceSynchronize());
-  //
-  //  auto events =
-  //      EventRegistrar::get_global_event_registrar().get_events(model_name);
-  //
-  //  executor.stop();
-  //  scheduler.stop();
-  //  scheduler_thread.join();
-  //  executor_thread.join();
+  map<string, int> sched_config = {{"max_block", max_block}};
+
+  Fijit fijit;
+
+  fijit.add_model(model_path, 1, possible_blocks);
+  fijit.add_query(input_path, input_name);
+  fijit.use_scheduler("StaticScheduler", sched_config);
+  fijit.use_workload(10, 10);
+
+  fijit.prepare();
+  fijit.infer();
+
+  auto events =
+      EventRegistrar::get_global_event_registrar().get_events(model_path);
+
+  cout << "Total number of events " << events.size() << endl;
 
   float total_time;
   cudaEventElapsedTime(&total_time, events[0][0],

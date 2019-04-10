@@ -6,8 +6,8 @@
 #define FIJIT_SYS_MODEL_MANAGER_H
 
 #include "memory_manager.h"
-#include "onnx.pb.h"
 #include "operators.h"
+#include "proto/onnx.pb.h"
 
 #include <memory>
 #include <unordered_map>
@@ -22,7 +22,9 @@ public:
   ModelManager(shared_ptr<StaticMemoryManager>,
                shared_ptr<DynamicMemoryManager>);
 
-  void register_model(ModelProto, string);
+  void register_model(ModelProto, string, vector<int> possible_blocks_config);
+
+  vector<int> get_all_blocks_config(string);
 
   shared_ptr<vector<LogicalOperator>> instantiate_model(string, int);
 
@@ -35,6 +37,7 @@ private:
 
   unordered_map<string, ModelProto> storage;
   unordered_map<string, shape_map_ptr> shape_maps;
+  unordered_map<string, vector<int>> possible_blocks_map;
 };
 
 #endif // FIJIT_SYS_MODEL_MANAGER_H

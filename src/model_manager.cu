@@ -1,8 +1,8 @@
 #include "memory_manager.h"
 #include "model_manager.h"
-#include "onnx.pb.h"
 #include "onnx_helper.h"
 #include "operators.h"
+#include "proto/onnx.pb.h"
 
 #include <iostream>
 #include <memory>
@@ -16,8 +16,15 @@ ModelManager::ModelManager(shared_ptr<StaticMemoryManager> smm,
                            shared_ptr<DynamicMemoryManager> dmm)
     : smm(smm), dmm(dmm) {}
 
-void ModelManager::register_model(ModelProto model_proto, string model_name) {
+void ModelManager::register_model(ModelProto model_proto, string model_name,
+                                  vector<int> possible_blocks_config) {
+  // If model_name is already registered, we just ignore the request.
+  if (storage.find(model_name) != storage.end()) {
+    return;
+  }
+
   storage.insert({model_name, model_proto});
+  possible_blocks_map.insert({model_name, possible_blocks_config});
 
   shape_maps.insert({model_name, traverse_shapes(model_proto.graph())});
 
@@ -25,6 +32,10 @@ void ModelManager::register_model(ModelProto model_proto, string model_name) {
     StaticBufferKey key{.model_name = model_name, .tensor_name = tensor.name()};
     smm->register_tensor(key, tensor);
   }
+}
+
+vector<int> ModelManager::get_all_blocks_config(string model_name) {
+  return possible_blocks_map.at(model_name);
 }
 
 shared_ptr<vector<LogicalOperator>>

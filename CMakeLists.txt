@@ -45,7 +45,9 @@ add_library(fijit-lib SHARED
         src/kernel_db.cc
         src/common.h
         src/onnx_helper.h
-        src/onnx_helper.cc src/backtrace.h)
+        src/onnx_helper.cc 
+        src/backtrace.h
+        )
 target_link_libraries(fijit-lib redox)
 target_link_libraries(${PROJECT_NAME} fijit-lib)
 target_compile_features(fijit-lib PUBLIC cxx_std_14)
@@ -88,7 +90,9 @@ add_library(cuda_lib STATIC
         src/events.h
         src/events.cu
         src/fijit.h
-        src/fijit.cu)
+        src/fijit.cu
+        src/onnx_helper.h
+        )
 
 target_link_libraries(cuda_lib
         cuda_common
@@ -97,10 +101,20 @@ target_link_libraries(cuda_lib
         fijit-lib
         fmt::fmt
         rapidjson
+        proto
         )
 target_link_libraries(${PROJECT_NAME} cuda_lib cuda_common)
 target_compile_features(cuda_lib PUBLIC cxx_std_14)
 set_target_properties(cuda_lib PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
-
-
+target_include_directories(cuda_lib BEFORE
+        PUBLIC
+        /usr/local/cuda/include
+)
+target_include_directories(${PROJECT_NAME} BEFORE
+        PUBLIC
+        /usr/local/cuda/include
+)
+set(CMAKE_CXX_COMPILER /usr/bin/clang++-8)
+set(CUDA_HOST_COMPILER /usr/bin/clang++-3.8)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fcolor-diagnostics")
 

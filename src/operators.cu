@@ -18,11 +18,13 @@
 #include "cublas_wrapper.h"
 #include "kernel_db.h"
 #include "operators.h"
+#include "proto/onnx.pb.h"
 
 #include <fmt/core.h>
 
 using namespace std;
 using namespace chrono;
+using namespace onnx;
 
 unordered_set<string> AllowedOps({"Conv", "AveragePool", "MaxPool", "Add",
                                   "Sum", "Relu", "BatchNormalization",

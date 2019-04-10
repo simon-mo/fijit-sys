@@ -1,87 +1,143 @@
 #include "fijit.h"
 #include "onnx_helper.h"
 
+#include <algorithm>
+#include <chrono>
+#include <fmt/format.h>
+#include <glog/logging.h>
 #include <string>
 
 using namespace std;
+using namespace onnx;
 
 void Fijit::add_model(string path, int num_replica,
                       vector<int> possible_blocks_config) {
   ModelProto model;
   parse_model(model, path);
 
-  model_protos.insert({path, model});
+  CHECK(num_replica == 1);
 
-  model_manager->register_model(model, path);
+  for (size_t i = 0; i < num_replica; i++) {
+    model_protos.insert({path, model});
+    model_manager->register_model(model, path, possible_blocks_config);
+  }
 }
 
 void Fijit::add_query(string path, string input_name) {
-  TensorProto input;
   parse_input(input, path);
-
-  input_protos.insert({path, input});
+  input_tensor_name = input_name;
 }
 
-void Fijit::use_scheduler(string scheduler_name, map<int> config) {
+void Fijit::use_scheduler(string scheduler_name, map<string, int> config) {
   int max_block = config.at("max_block");
-  assert(ALLOWED_SCHEDULERS.find(scheduler_name) != ALLOWED_SCHEDULERS.end());
-  scheduler = StaticScheduler(max_block, &cudaCtx, &handle, &cublasHandle);
+
+  CHECK(ALLOWED_SCHEDULERS.find(scheduler_name) != ALLOWED_SCHEDULERS.end());
+  // We only allows one type of scheuler now
+  CHECK(scheduler_name == *ALLOWED_SCHEDULERS.begin());
+  CHECK(scheduler_name == "StaticScheduler");
+
+  scheduler =
+      make_shared<StaticScheduler>(max_block, &cudaCtx, &handle, &cublasHandle);
+}
+
+void Fijit::use_workload(int qps_, int total_query_) {
+  qps = qps_;
+  total_query = total_query_;
+}
+
+shared_ptr<vector<LogicalOperator>> Fijit::generate_query(string model_name,
+                                                          int replica_id) {
+  shared_ptr<vector<LogicalOperator>> ops =
+      model_manager->instantiate_model(model_name, replica_id);
+
+  auto all_blocks = model_manager->get_all_blocks_config(model_name);
+  for (int i = 0; i < ops->size(); ++i) {
+    ops->at(i).preload(all_blocks, &handle, &cublasHandle);
+  }
+
+  model_manager->register_input(model_name, replica_id, input,
+                                input_tensor_name);
+
+  return ops;
 }
 
 void Fijit::prepare() {
-  assert(model_protos.size() == 1) assert(input_protos.size() == 1)
+  fijit_prepared = true;
 
-      scheduler_queue = make_shared<ConcurrentQueue<vector<LogicalOperator>>>();
+  // So far we support one model one replica and one input
+  CHECK(model_protos.size() == 1);
+
+  auto first_model_name = model_protos.begin()->first;
+
+  scheduler_queue = make_shared<ConcurrentQueue<vector<LogicalOperator>>>();
   dispatch_queue =
-      scheduler.register_model_queue(model_protos., scheduler_queue);
-  executor = Executor(&cudaCtx);
-  executor.register_queue(model_name, dispatch_queue);
+      scheduler->register_model_queue(first_model_name, scheduler_queue);
 
-  thread scheduler_thread([&]() { scheduler.start(); });
-  thread executor_thread([&]() { executor.start(); });
+  executor = make_shared<Executor>(&cudaCtx);
+  executor->register_queue(first_model_name, dispatch_queue);
+
+  scheduler_thread = thread([&]() { scheduler->start(); });
+  executor_thread = thread([&]() { executor->start(); });
+
+  queries = generate_query(first_model_name);
+}
+
+void Fijit::infer() {
+  CHECK(fijit_prepared);
+
+  auto sleep_time_ns =
+      chrono::duration_cast<chrono::nanoseconds>(chrono::seconds(1)) / qps;
+
+  for (size_t i = 0; i < total_query; i++) {
+    auto start = chrono::high_resolution_clock::now();
+
+    scheduler_queue->enqueue(*queries);
+    auto end = chrono::high_resolution_clock::now();
+    auto processing_time = end - start;
+    auto time_left_to_sleep = sleep_time_ns - processing_time;
+    CHECK(time_left_to_sleep > chrono::nanoseconds(1));
+
+    LOG(INFO) << fmt::format(
+        "Sleeping for {}us",
+        chrono::duration_cast<chrono::microseconds>(time_left_to_sleep)
+            .count());
+
+    std::this_thread::sleep_for(time_left_to_sleep);
+  }
+
+  std::this_thread::sleep_for(0.5s);
+
+  auto wait_for_queue_sched = [](decltype(scheduler_queue) q) {
+    for (size_t i = 0; i < 2; i++) {
+      while (q->size_approx() != 0) {
+        std::this_thread::sleep_for(10ms);
+      }
+    }
+  };
+  wait_for_queue_sched(scheduler_queue);
+
+  auto wait_for_queue_exec = [](decltype(dispatch_queue) q) {
+    for (size_t i = 0; i < 2; i++) {
+      while (q->size_approx() != 0) {
+        std::this_thread::sleep_for(10ms);
+      }
+    }
+  };
+  wait_for_queue_exec(dispatch_queue);
+
+  CHECK_CUDA(cudaDeviceSynchronize());
 }
 
 Fijit::Fijit() {
-
   // Initialize CUDA Context
   cudaCtx = cuda_init();
   cudnnCreate(&handle);
   cublasCreate(&cublasHandle);
+}
 
-  auto generate_query = [&](int query_id) {
-    query_id = 0; // TODO(simon): we are overriding qid to re-use memory
-    shared_ptr<vector<LogicalOperator>> ops =
-        model_manager->instantiate_model(model_name, query_id);
-
-    for (int i = 0; i < ops->size(); ++i) {
-      ops->at(i).preload(possible_blocks, &handle, &cublasHandle);
-    }
-
-    model_manager->register_input(model_name, query_id, input, input_name);
-
-    return ops;
-  };
-
-  vector<shared_ptr<vector<LogicalOperator>>> queries;
-  for (int j = 0; j < num_query; ++j) {
-    for (int i = 0; i < num_stream; ++i) {
-      queries.push_back(generate_query(j * num_stream + i));
-    }
-  }
-
-  for (auto &ops : queries) {
-    CHECK(scheduler_queue->enqueue(*ops));
-  }
-
-  this_thread::sleep_for(1s);
-
-  CHECK_CUDA(cudaDeviceSynchronize());
-
-  auto events =
-      EventRegistrar::get_global_event_registrar().get_events(model_name);
-
-  executor.stop();
-  scheduler.stop();
+Fijit::~Fijit() {
+  executor->stop();
+  scheduler->stop();
   scheduler_thread.join();
   executor_thread.join();
 }

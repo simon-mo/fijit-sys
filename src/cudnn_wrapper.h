@@ -5,8 +5,6 @@
 #ifndef FIJIT_SYS_CUDNN_WRAPPER_H
 #define FIJIT_SYS_CUDNN_WRAPPER_H
 
-#include "../include/cuda.h"
-#include "../include/cudnn.h"
 #include "abstract_operators.h"
 #include "common.h"
 #include "cuda.h"

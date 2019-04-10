@@ -1,6 +1,10 @@
+#include "cuda.h"
 #include "events.h"
 
 #include <iostream>
+#include <string>
+
+using namespace std;
 
 void EventRegistrar::insert(string model_name, cudaEvent_t start,
                             cudaEvent_t end) {

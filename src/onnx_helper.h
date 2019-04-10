@@ -5,8 +5,8 @@
 #ifndef FIJIT_SYS_ONNX_HELPER_H
 #define FIJIT_SYS_ONNX_HELPER_H
 
-#include "onnx.pb.h"
 #include "onnx_helper.h"
+#include "proto/onnx.pb.h"
 #include <memory>
 #include <numeric>
 #include <string>
@@ -21,7 +21,7 @@ size_t get_size(TensorProto &tensor);
 
 size_t get_size(ValueInfoProto &info);
 
-void parse_model(ModelProto &model, const char *model_path);
+void parse_model(ModelProto &model, string model_path);
 
 void parse_input(TensorProto &input, string input_path);
 

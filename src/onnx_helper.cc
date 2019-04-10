@@ -3,7 +3,7 @@
 //
 #include "onnx_helper.h"
 
-#include "onnx.pb.h"
+#include "proto/onnx.pb.h"
 #include <fcntl.h>
 #include <fstream>
 #include <memory>
@@ -55,8 +55,8 @@ size_t get_size(ValueInfoProto &info) {
   return num_elems;
 }
 
-void parse_model(ModelProto &model, const char *model_path) {
-  int fd = open(model_path, O_RDONLY);
+void parse_model(ModelProto &model, string model_path) {
+  int fd = open(model_path.c_str(), O_RDONLY);
   ZeroCopyInputStream *raw_input = new FileInputStream(fd);
   CodedInputStream *coded_input = new CodedInputStream(raw_input);
   coded_input->SetTotalBytesLimit(671088640, 167108860);

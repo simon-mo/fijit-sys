@@ -1,6 +1,6 @@
 
-set(CUDA_TOOLKIT_ROOT_DIR "${CMAKE_CUDA_COMPILER}")
-get_filename_component(CUDA_TOOLKIT_ROOT_DIR "${CUDA_TOOLKIT_ROOT_DIR}" DIRECTORY)
+set(CUDA_TOOLKIT_ROOT_DIR "/usr/local/cuda/bin")
+
 
 find_library(CUDART_LIB cudart
         HINTS

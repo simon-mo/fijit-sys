@@ -60,4 +60,9 @@
 
 CUcontext cuda_init(void);
 
+// This is suppose to be a stream callback that record a timestamp
+// at memory location data
+void CUDART_CB host_record_time(cudaStream_t stream, cudaError_t status,
+                                void *data);
+
 #endif // FIJIT_SYS_COMMON_CUH_H
