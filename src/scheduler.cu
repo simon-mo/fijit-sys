@@ -6,6 +6,8 @@
 #include "concurrentqueue/concurrentqueue.h"
 #include "scheduler.h"
 
+#include "abstract_operators.h"
+
 #include <chrono>
 #include <iostream>
 #include <memory>
@@ -75,11 +77,20 @@ void StaticScheduler::schedule() {
 
     vector<LogicalOperator> model_ops;
     while (op_queue->try_dequeue(model_ops)) {
+      shared_ptr<PhysicalOperator> begin_op = make_shared<TimingOperator>();
+      shared_ptr<PhysicalOperator> end_op = make_shared<TimingOperator>();
+      begin_op->is_timing = true;
+      end_op->is_timing = true;
+      begin_op->event_type = EventType::BEGIN;
+      end_op->event_type = EventType::END;
+
+      CHECK(dispatch_queue->enqueue(begin_op));
       for (auto &op : model_ops) {
         shared_ptr<PhysicalOperator> physical_op =
             op.realize(max_blocks, handle, cublasHandle);
         CHECK(dispatch_queue->enqueue(physical_op));
       }
+      CHECK(dispatch_queue->enqueue(end_op));
     }
   }
 }
