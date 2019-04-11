@@ -12,17 +12,18 @@
 
 using namespace std;
 
-void EventRegistrar::record(EventType type, EventSource source, string name) {
+void EventRegistrar::record(EventType type, EventSource source, string name,
+                            int tid) {
   int64_t now =
       std::chrono::high_resolution_clock::now().time_since_epoch().count();
-  EventEntry e{type, source, name, now};
+  EventEntry e{type, source, name, now, tid};
   auto entry = make_unique<EventEntry>(e);
   data.push_back(move(entry));
 }
 
 void EventRegistrar::record(EventType type, EventSource source, string name,
-                            cudaStream_t s) {
-  EventEntry e{type, source, name, 0};
+                            int tid, cudaStream_t s) {
+  EventEntry e{type, source, name, 0, tid};
   auto entry = make_unique<EventEntry>(e);
   CHECK_CUDA(cudaStreamAddCallback(s, host_record_time, &entry->ts_ns, 0));
   data.push_back(move(entry));

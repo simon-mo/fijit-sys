@@ -76,7 +76,9 @@ int main(int argc, char *argv[]) {
   int num_stream = result["num-stream"].as<int>();
   int qps = result["qps"].as<int>();
 
-  vector<int> possible_blocks = {20, 40, 80};
+  vector<int> possible_blocks = {20, 40, 80, 120, 160, 200, 240, 320, 100000};
+  CHECK(std::find(possible_blocks.begin(), possible_blocks.end(), max_block) !=
+        possible_blocks.end());
   map<string, int> sched_config = {{"max_block", max_block}};
 
   Fijit fijit;

@@ -36,6 +36,7 @@ struct EventEntry {
   EventSource source;
   string name;
   int64_t ts_ns;
+  int tid;
 
   friend std::ostream &operator<<(ostream &out, const EventEntry &entry) {
     out << fmt::format(" Event .type={}, .name={}, .ts_ns={} ", entry.type,
@@ -46,8 +47,9 @@ struct EventEntry {
 
 class EventRegistrar {
 public:
-  void record(EventType type, EventSource source, string name);
-  void record(EventType type, EventSource source, string name, cudaStream_t s);
+  void record(EventType type, EventSource source, string name, int tid);
+  void record(EventType type, EventSource source, string name, int tid,
+              cudaStream_t s);
 
   vector<EventEntry> get_events();
   vector<EventEntry> get_events(string name);

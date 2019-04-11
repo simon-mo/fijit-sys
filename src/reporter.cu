@@ -46,7 +46,7 @@ string report_chrome_trace(void) {
 
     Value item(kObjectType);
     item.AddMember("pid", Value(1), allocator);
-    item.AddMember("tid", Value(static_cast<int>(e.source)), allocator);
+    item.AddMember("tid", Value(e.tid), allocator);
     item.AddMember("ts", timestamp.count(), allocator);
     item.AddMember("ph", event_type, allocator);
     item.AddMember("name", name, allocator);
