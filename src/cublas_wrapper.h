@@ -23,7 +23,7 @@ class GemmOperator : public CUBLASOperator {
 public:
   GemmOperator(cublasHandle_t *cublasHandle, NodeProto node,
                shared_ptr<unordered_map<string, ValueInfoProto>> io_shapes);
-  std::vector<cudaEvent_t> dispatch(cudaStream_t) override;
+  void dispatch(cudaStream_t) override;
   void set_argument(KERNEL_ARG, CUdeviceptr) override;
 
   string get_name() { return "Cublas-Gemm"; };

@@ -22,7 +22,7 @@ class PoolingOperator : public CUDNNOperator {
 public:
   PoolingOperator(cudnnHandle_t *handle_, ValueInfoProto input_shape_,
                   NodeProto node, cudnnPoolingMode_t mode);
-  std::vector<cudaEvent_t> dispatch(cudaStream_t) override;
+  void dispatch(cudaStream_t) override;
   void set_argument(KERNEL_ARG, CUdeviceptr) override;
 
   string get_name() { return "CudnnPooling"; };
@@ -39,7 +39,7 @@ class AddOperator : public CUDNNOperator {
 public:
   AddOperator(cudnnHandle_t *handle_, ValueInfoProto input_shape_,
               ValueInfoProto output_shape_);
-  std::vector<cudaEvent_t> dispatch(cudaStream_t) override;
+  void dispatch(cudaStream_t) override;
   void set_argument(KERNEL_ARG, CUdeviceptr) override;
 
   string get_name() { return "CudnnAdd"; };
@@ -55,7 +55,7 @@ private:
 class ReluOperator : public CUDNNOperator {
 public:
   ReluOperator(cudnnHandle_t *handle_, ValueInfoProto input_shape_);
-  std::vector<cudaEvent_t> dispatch(cudaStream_t) override;
+  void dispatch(cudaStream_t) override;
   void set_argument(KERNEL_ARG, CUdeviceptr) override;
 
   string get_name() { return "CudnnRelu"; };
@@ -72,7 +72,7 @@ class BatchNormOperator : public CUDNNOperator {
 public:
   BatchNormOperator(cudnnHandle_t *handle_, ValueInfoProto input_shape_,
                     double epsilon);
-  vector<cudaEvent_t> dispatch(cudaStream_t) override;
+  void dispatch(cudaStream_t) override;
   void set_argument(KERNEL_ARG, CUdeviceptr) override;
 
   string get_name() { return "CudnnBatchNorm"; };
@@ -89,7 +89,7 @@ private:
 class SoftMaxOperator : public CUDNNOperator {
 public:
   SoftMaxOperator(cudnnHandle_t *handle_, ValueInfoProto input_shape_);
-  std::vector<cudaEvent_t> dispatch(cudaStream_t) override;
+  void dispatch(cudaStream_t) override;
   void set_argument(KERNEL_ARG, CUdeviceptr) override;
 
   string get_name() { return "CudnnSoftMax"; };
@@ -109,7 +109,7 @@ class ConvOperator : public CUDNNOperator {
 public:
   ConvOperator(cudnnHandle_t *handle_, NodeProto node,
                shared_ptr<unordered_map<string, ValueInfoProto>> io_shapes);
-  std::vector<cudaEvent_t> dispatch(cudaStream_t) override;
+  void dispatch(cudaStream_t) override;
   void set_argument(KERNEL_ARG, CUdeviceptr) override;
 
   string get_name() { return "CudnnConv"; };

@@ -56,9 +56,6 @@ TVMOperator::TVMOperator(string binary, k_dim3 k_block, k_dim3 k_grid,
   }
 
   args = k_args;
-
-  cudaEventCreate(&start_event);
-  cudaEventCreate(&end_event);
 }
 
 void TVMOperator::set_argument(KERNEL_ARG arg, CUdeviceptr ptr) {
@@ -83,7 +80,7 @@ void TVMOperator::set_argument(KERNEL_ARG arg, CUdeviceptr ptr) {
   }
 }
 
-vector<cudaEvent_t> TVMOperator::dispatch(cudaStream_t s) {
+void TVMOperator::dispatch(cudaStream_t s) {
   void **params = new void *[args.size()];
   for (int i = 0; i < args.size(); i++) {
     KERNEL_ARG arg = args[i];
@@ -104,8 +101,6 @@ vector<cudaEvent_t> TVMOperator::dispatch(cudaStream_t s) {
     }
   }
 
-  cudaEventRecord(start_event, s);
-
   CHECK_CUDEVICE(cuLaunchKernel(
       /*CUfunction*/ func,
       /*gridDimX*/ (*block).x,
@@ -118,10 +113,6 @@ vector<cudaEvent_t> TVMOperator::dispatch(cudaStream_t s) {
       /*hStream*/ s,
       /*void** kernelParams*/ params,
       /* void** extra*/ NULL));
-
-  cudaEventRecord(end_event, s);
-
-  return vector<cudaEvent_t>({start_event, end_event});
 }
 
 bool TVMOperator::operator==(const TVMOperator &rhs) const {
@@ -349,18 +340,10 @@ void ReshapeOperator::set_argument(KERNEL_ARG arg, CUdeviceptr ptr) {
   }
 }
 
-vector<cudaEvent_t> ReshapeOperator::dispatch(cudaStream_t stream) {
+void ReshapeOperator::dispatch(cudaStream_t stream) {
   assert(input_is_set && output_is_set);
 
-  cudaEventRecord(start_event, stream);
-
   cuMemcpyDtoDAsync(output, input, sizeof(float) * total_size, stream);
-
-  cudaEventRecord(end_event, stream);
-  return {start_event, end_event};
 }
 
-ReshapeOperator::ReshapeOperator(int total_size) : total_size(total_size) {
-  cudaEventCreate(&start_event);
-  cudaEventCreate(&end_event);
-}
+ReshapeOperator::ReshapeOperator(int total_size) : total_size(total_size) {}

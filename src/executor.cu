@@ -42,7 +42,7 @@ void Executor::start() {
         //                         op_name);
         events_registrar.record(EventType::BEGIN, EventSource::GPU, op_name,
                                 ctx_struct.stream);
-        auto events = op->dispatch(ctx_struct.stream);
+        op->dispatch(ctx_struct.stream);
         events_registrar.record(EventType::END, EventSource::GPU, op_name,
                                 ctx_struct.stream);
         // events_registrar.record(EventType::END, EventSource::Executor,

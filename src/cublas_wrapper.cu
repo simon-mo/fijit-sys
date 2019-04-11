@@ -8,16 +8,6 @@
 using namespace onnx;
 using namespace std;
 
-vector<cudaEvent_t> cuda_get_events_2(int num_events) {
-  vector<cudaEvent_t> events(0);
-  for (int i = 0; i < num_events; ++i) {
-    cudaEvent_t e;
-    CHECK_CUDA(cudaEventCreate(&e));
-    events.push_back(e);
-  }
-  return events;
-}
-
 GemmOperator::GemmOperator(
     cublasHandle_t *handle_, NodeProto node,
     shared_ptr<unordered_map<string, ValueInfoProto>> io_shapes)
@@ -98,11 +88,9 @@ void GemmOperator::set_argument(KERNEL_ARG arg, CUdeviceptr ptr) {
   }
 }
 
-vector<cudaEvent_t> GemmOperator::dispatch(cudaStream_t s) {
+void GemmOperator::dispatch(cudaStream_t s) {
   assert(input_is_set && output_is_set && data_is_set && bias_is_set);
 
-  vector<cudaEvent_t> events = cuda_get_events_2(2);
-  CHECK_CUDA(cudaEventRecord(events[0], s));
   CHECK_CUBLAS(cublasSetStream(*handle, s));
 
   for (int i = 0; i < m; i++) {
@@ -125,9 +113,6 @@ vector<cudaEvent_t> GemmOperator::dispatch(cudaStream_t s) {
       /* const float *beta */ &beta,
       /* float *C */ (float *)(output),
       /* int ldc */ m));
-
-  CHECK_CUDA(cudaEventRecord(events[1], s));
-  return events;
 }
 
 // TODO(simon) I had to patch cuda header, didn't have time to investigate why
