@@ -3,7 +3,6 @@
 
 #include "common/common.h"
 #include "common/common_cuda.h"
-// #include "events.h"
 #include <vector>
 
 class PhysicalOperator {
@@ -14,24 +13,24 @@ public:
 
   virtual string get_name() = 0;
 
-  // bool is_timing = false;
-  // EventType event_type;
+  bool is_timing = false;
+  EventType event_type;
 };
 
 class CUDNNOperator : public PhysicalOperator {};
 
 class CUBLASOperator : public PhysicalOperator {};
 
-// class TimingOperator : public PhysicalOperator {
-// public:
-//   void set_argument(KERNEL_ARG, CUdeviceptr){};
+class TimingOperator : public PhysicalOperator {
+public:
+  void set_argument(KERNEL_ARG, CUdeviceptr){};
 
-//   void dispatch(cudaStream_t){};
+  void dispatch(cudaStream_t){};
 
-//   string get_name() { return "TimingOp"; };
+  string get_name() { return "TimingOp"; };
 
-//   bool is_timing = true;
-//   EventType event_type;
-// };
+  bool is_timing = true;
+  EventType event_type;
+};
 
 #endif // FIJIT_SYS_ABSTRACT_OPERATORS_H

@@ -1,5 +1,6 @@
 #include "executor.h"
 
+#include "common/common.h"
 #include "common/common_cuda.h"
 
 #include <chrono>
@@ -46,17 +47,17 @@ void Executor::start() {
           fmt::format("{}-{}", ctx_struct.model_name, op->get_name());
       // events_registrar.record(EventType::BEGIN, EventSource::Executor,
       //                         op_name);
-      // if (op->is_timing && op->event_type == EventType::BEGIN) {
-      //   events_registrar.record(EventType::BEGIN, EventSource::GPU, op_name,
-      //                           tid_counter, ctx_struct.stream);
-      // }
+      if (op->is_timing && op->event_type == EventType::BEGIN) {
+        events_registrar.record(EventType::BEGIN, EventSource::GPU, op_name,
+                                tid_counter, ctx_struct.stream);
+      }
 
       op->dispatch(ctx_struct.stream);
 
-      // if (op->is_timing && op->event_type == EventType::END) {
-      //   events_registrar.record(EventType::END, EventSource::GPU, op_name,
-      //                           tid_counter, ctx_struct.stream);
-      // }
+      if (op->is_timing && op->event_type == EventType::END) {
+        events_registrar.record(EventType::END, EventSource::GPU, op_name,
+                                tid_counter, ctx_struct.stream);
+      }
 
       // events_registrar.record(EventType::END, EventSource::Executor,
       // op_name);
