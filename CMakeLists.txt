@@ -102,6 +102,9 @@ target_link_libraries(runtime
     fmt::fmt
 )
 CUDA_TARGET(runtime)
+target_compile_definitions(runtime
+   PUBLIC RAPIDJSON_WRITE_DEFAULT_FLAGS=2
+)
                       
 target_link_libraries(${PROJECT_NAME} fijit-utils common-cuda operators runtime)
 
