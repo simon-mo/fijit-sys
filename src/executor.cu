@@ -36,30 +36,30 @@ void Executor::start() {
 
     int tid_counter = 0;
     for (ExecutorCtx &ctx_struct : executor_queues) {
-      tid_counter ++;
+      tid_counter++;
 
       // while (ctx_struct.queue->try_dequeue(op)) {
-        if (!ctx_struct.queue->try_dequeue(op)) {
-          continue;
-        }
-        string op_name =
-            fmt::format("{}-{}", ctx_struct.model_name, op->get_name());
-        // events_registrar.record(EventType::BEGIN, EventSource::Executor,
-        //                         op_name);
-        if (op->is_timing && op->event_type == EventType::BEGIN) {
-          events_registrar.record(EventType::BEGIN, EventSource::GPU, op_name,
-                                  tid_counter, ctx_struct.stream);
-        }
+      if (!ctx_struct.queue->try_dequeue(op)) {
+        continue;
+      }
+      string op_name =
+          fmt::format("{}-{}", ctx_struct.model_name, op->get_name());
+      // events_registrar.record(EventType::BEGIN, EventSource::Executor,
+      //                         op_name);
+      if (op->is_timing && op->event_type == EventType::BEGIN) {
+        events_registrar.record(EventType::BEGIN, EventSource::GPU, op_name,
+                                tid_counter, ctx_struct.stream);
+      }
 
-        op->dispatch(ctx_struct.stream);
+      op->dispatch(ctx_struct.stream);
 
-        if (op->is_timing && op->event_type == EventType::END) {
-          events_registrar.record(EventType::END, EventSource::GPU, op_name,
-                                  tid_counter, ctx_struct.stream);
-        }
+      if (op->is_timing && op->event_type == EventType::END) {
+        events_registrar.record(EventType::END, EventSource::GPU, op_name,
+                                tid_counter, ctx_struct.stream);
+      }
 
-        // events_registrar.record(EventType::END, EventSource::Executor,
-        // op_name);
+      // events_registrar.record(EventType::END, EventSource::Executor,
+      // op_name);
       // }
     }
   }

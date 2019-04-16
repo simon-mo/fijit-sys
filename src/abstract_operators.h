@@ -1,7 +1,3 @@
-//
-// Created by Simon Mo on 2019-03-14.
-//
-
 #ifndef FIJIT_SYS_ABSTRACT_OPERATORS_H
 #define FIJIT_SYS_ABSTRACT_OPERATORS_H
 

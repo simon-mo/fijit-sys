@@ -109,11 +109,10 @@ void Fijit::infer() {
     //         .count()
     //         );
 
-    // if (time_left_to_sleep > chrono::nanoseconds(1)) {
-    //    std::this_thread::sleep_for(time_left_to_sleep);
-    // }
-
     // CHECK(time_left_to_sleep > chrono::nanoseconds(1));
+    if (time_left_to_sleep > chrono::nanoseconds(1)) {
+      std::this_thread::sleep_for(time_left_to_sleep);
+    }
   }
 
   std::this_thread::sleep_for(0.5s);

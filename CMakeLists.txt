@@ -34,14 +34,13 @@ target_link_libraries(${PROJECT_NAME}
 
 # CPU Only Libraries
 add_library(fijit-lib
-            SHARED
             src/kernel_db.h
             src/kernel_db.cc
             src/common.h
             src/onnx_helper.h
             src/onnx_helper.cc
             src/backtrace.h)
-target_link_libraries(fijit-lib redox)
+target_link_libraries(fijit-lib redox proto)
 target_link_libraries(${PROJECT_NAME} fijit-lib)
 target_compile_features(fijit-lib PUBLIC cxx_std_14)
 set_target_properties(fijit-lib PROPERTIES LINKER_LANGUAGE CXX)
@@ -49,7 +48,6 @@ set_target_properties(fijit-lib PROPERTIES LINKER_LANGUAGE CXX)
 # GPU Only Libraries
 
 add_library(cuda_lib
-            STATIC
             src/common_cuda.cu
             src/common_cuda.h
             src/common.h
