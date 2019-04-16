@@ -10,3 +10,6 @@
 [submodule "third_party/glog"]
 	path = third_party/glog
 	url = https://github.com/google/glog.git
+[submodule "third_party/readerwriterqueue"]
+	path = third_party/readerwriterqueue
+	url = https://github.com/cameron314/readerwriterqueue.git
