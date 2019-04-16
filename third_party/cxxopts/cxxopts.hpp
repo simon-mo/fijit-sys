@@ -591,7 +591,7 @@ namespace cxxopts
         result = result * base + digit;
       }
 
-      detail::check_signed_range<T>(negative, result, text);
+      // detail::check_signed_range<T>(negative, result, text);
 
       if (negative)
       {

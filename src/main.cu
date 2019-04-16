@@ -39,12 +39,12 @@ int main(int argc, char *argv[]) {
   options.add_options()
       ("m,model", "Path to the model ONNX file", cxxopts::value<string>())
       ("i,input", "Path to the input ONNX file", cxxopts::value<string>())
-      ("max-block", "Max block for TVM ops", cxxopts::value<int>())
+      ("max-block", "Max block for TVM ops", cxxopts::value<string>())
       ("input-name", "Override input tensor name", cxxopts::value<string>())
 
-      ("qps", "Query per seconds", cxxopts::value<int>()->default_value("10"))
-      ("num-query", "Number of query per stream", cxxopts::value<int>()->default_value("1"))
-      ("num-stream", "Number of stream", cxxopts::value<int>()->default_value("1"))
+      ("qps", "Query per seconds", cxxopts::value<string>()->default_value("10"))
+      ("num-query", "Number of query per stream", cxxopts::value<string>()->default_value("1"))
+      ("num-stream", "Number of stream", cxxopts::value<string>()->default_value("1"))
 
       ("out", "Metric file path", cxxopts::value<string>())
 
@@ -70,11 +70,11 @@ int main(int argc, char *argv[]) {
 
   string out_metric_path = result["out"].as<string>();
 
-  int max_block = result["max-block"].as<int>();
+  int max_block = stoi(result["max-block"].as<string>());
 
-  int num_query = result["num-query"].as<int>();
-  int num_stream = result["num-stream"].as<int>();
-  int qps = result["qps"].as<int>();
+  int num_query = stoi(result["num-query"].as<string>());
+  int num_stream = stoi(result["num-stream"].as<string>());
+  int qps = stoi(result["qps"].as<string>());
 
   vector<int> possible_blocks = {20, 40, 80, 120, 160, 200, 240, 320, 100000};
   CHECK(std::find(possible_blocks.begin(), possible_blocks.end(), max_block) !=

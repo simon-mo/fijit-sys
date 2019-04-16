@@ -9,6 +9,7 @@
 #include <memory>
 #include <set>
 #include <string>
+#include <thread>
 
 #include "common/common_cuda.h"
 #include "operators/abstract_operators.h"
@@ -18,14 +19,14 @@
 #include "runtime/scheduler.h"
 #include "utils/onnx_helper.h"
 
-#include "concurrentqueue/concurrentqueue.h"
+#include "readerwriterqueue/readerwriterqueue.h"
 
 using namespace onnx;
 using namespace std;
 
 const set<string> ALLOWED_SCHEDULERS = {"StaticScheduler"};
-typedef shared_ptr<ConcurrentQueue<vector<LogicalOperator>>> SchedQueue;
-typedef shared_ptr<ConcurrentQueue<shared_ptr<PhysicalOperator>>> ExecQueue;
+typedef shared_ptr<ReaderWriterQueue<vector<LogicalOperator>>> SchedQueue;
+typedef shared_ptr<ReaderWriterQueue<shared_ptr<PhysicalOperator>>> ExecQueue;
 
 class Fijit {
 public:
@@ -86,8 +87,6 @@ private:
   shared_ptr<Scheduler> scheduler;
   shared_ptr<Executor> executor;
 
-  // shared_ptr<ConcurrentQueue<vector<LogicalOperator>>> scheduler_queue;
-  // shared_ptr<ConcurrentQueue<shared_ptr<PhysicalOperator>>> dispatch_queue;
   map<string, SchedQueue> sched_queues;
   map<string, ExecQueue> exec_queues;
 };

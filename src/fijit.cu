@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <thread>
 #include <fmt/format.h>
 #include <glog/logging.h>
 #include <string>
@@ -69,7 +70,7 @@ void Fijit::prepare() {
     LOG(INFO) << fmt::format("Preparing input for model {}", model_name);
 
     auto scheduler_queue =
-        make_shared<ConcurrentQueue<vector<LogicalOperator>>>();
+        make_shared<ReaderWriterQueue<vector<LogicalOperator>>>();
     auto dispatch_queue =
         scheduler->register_model_queue(model_name, scheduler_queue);
 

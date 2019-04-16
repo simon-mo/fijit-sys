@@ -13,19 +13,18 @@
 #include <thread>
 
 #include <glog/logging.h>
-#include "concurrentqueue/concurrentqueue.h"
+#include "readerwriterqueue/readerwriterqueue.h"
 
 
 using namespace std;
 using namespace chrono;
 
-shared_ptr<ConcurrentQueue<shared_ptr<PhysicalOperator>>>
+shared_ptr<ReaderWriterQueue<shared_ptr<PhysicalOperator>>>
 Scheduler::register_model_queue(
-    string model_name, shared_ptr<ConcurrentQueue<vector<LogicalOperator>>> q) {
+    string model_name, shared_ptr<ReaderWriterQueue<vector<LogicalOperator>>> q) {
   logical_op_queues.insert({model_name, q});
 
-  shared_ptr<ConcurrentQueue<shared_ptr<PhysicalOperator>>> ops_q =
-      make_shared<ConcurrentQueue<shared_ptr<PhysicalOperator>>>();
+  auto ops_q = make_shared<ReaderWriterQueue<shared_ptr<PhysicalOperator>>>();
 
   physical_op_queues.insert({model_name, ops_q});
 
@@ -69,10 +68,9 @@ void StaticScheduler::schedule() {
 
   for (auto &entry : logical_op_queues) {
     string model_name = entry.first;
-    shared_ptr<ConcurrentQueue<shared_ptr<PhysicalOperator>>> dispatch_queue =
-        physical_op_queues.at(model_name);
+    auto dispatch_queue = physical_op_queues.at(model_name);
 
-    shared_ptr<ConcurrentQueue<vector<LogicalOperator>>> op_queue =
+    shared_ptr<ReaderWriterQueue<vector<LogicalOperator>>> op_queue =
         entry.second;
 
     vector<LogicalOperator> model_ops;

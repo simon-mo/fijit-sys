@@ -9,7 +9,7 @@
 #include "runtime/events.h"
 #include "runtime/model_manager.h"
 
-#include "concurrentqueue/concurrentqueue.h"
+#include "readerwriterqueue/readerwriterqueue.h"
 
 #include <list>
 #include <memory>
@@ -20,7 +20,7 @@ using namespace moodycamel;
 using namespace std;
 
 using PhysicalOpQueue =
-    shared_ptr<ConcurrentQueue<shared_ptr<PhysicalOperator>>>;
+    shared_ptr<ReaderWriterQueue<shared_ptr<PhysicalOperator>>>;
 
 struct ExecutorCtx {
   string model_name;
