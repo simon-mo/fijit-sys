@@ -1,15 +1,10 @@
-//
-// Created by Simon Mo on 2019-03-14.
-//
-
 #ifndef FIJIT_SYS_CUDNN_WRAPPER_H
 #define FIJIT_SYS_CUDNN_WRAPPER_H
 
-#include "abstract_operators.h"
-#include "common.h"
-#include "cuda.h"
-#include "cudnn.h"
-#include "proto/onnx.pb.h"
+#include "common/common.h"
+#include "common/common_cuda.h"
+#include "operators/abstract_operators.h"
+#include "utils/onnx_helper.h"
 
 #include <list>
 #include <memory>

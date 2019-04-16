@@ -10,16 +10,15 @@
 #include <set>
 #include <string>
 
-#include "memory_manager.h"
-#include "model_manager.h"
-#include "proto/onnx.pb.h"
+#include "common/common_cuda.h"
+#include "operators/abstract_operators.h"
+#include "runtime/executor.h"
+#include "runtime/memory_manager.h"
+#include "runtime/model_manager.h"
+#include "runtime/scheduler.h"
+#include "utils/onnx_helper.h"
 
-#include "executor.h"
-#include "scheduler.h"
-
-#include "common_cuda.h"
 #include "concurrentqueue/concurrentqueue.h"
-#include "operators.h"
 
 using namespace onnx;
 using namespace std;

@@ -5,7 +5,6 @@
 #ifndef FIJIT_SYS_ONNX_HELPER_H
 #define FIJIT_SYS_ONNX_HELPER_H
 
-#include "onnx_helper.h"
 #include "proto/onnx.pb.h"
 #include <memory>
 #include <numeric>

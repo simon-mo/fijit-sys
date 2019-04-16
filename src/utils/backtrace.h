@@ -1,7 +1,3 @@
-//
-// Created by Simon Mo on 2019-04-03.
-//
-
 #ifndef FIJIT_SYS_BACKTRACE_H
 #define FIJIT_SYS_BACKTRACE_H
 

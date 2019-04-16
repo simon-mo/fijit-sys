@@ -1,8 +1,8 @@
-#include "memory_manager.h"
-#include "model_manager.h"
-#include "onnx_helper.h"
-#include "operators.h"
-#include "proto/onnx.pb.h"
+#include "runtime/memory_manager.h"
+#include "runtime/model_manager.h"
+
+#include "operators/operators.h"
+#include "utils/onnx_helper.h"
 
 #include <iostream>
 #include <memory>

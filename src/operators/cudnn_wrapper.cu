@@ -1,8 +1,7 @@
-#include "cuda.h"
-#include "cudnn.h"
-
-#include "common_cuda.h"
 #include "cudnn_wrapper.h"
+
+#include "common/common.h"
+#include "common/common_cuda.h"
 
 #include <cassert>
 #include <vector>

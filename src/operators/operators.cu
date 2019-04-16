@@ -1,5 +1,11 @@
-#include <cuda.h>
-#include <cuda_runtime.h>
+#include "operators/operators.h"
+
+#include "common/common.h"
+#include "common/common_cuda.h"
+#include "operators/cublas_wrapper.h"
+#include "operators/cudnn_wrapper.h"
+#include "utils/kernel_db.h"
+#include "utils/onnx_helper.h"
 
 #include <cassert>
 #include <chrono>
@@ -8,17 +14,6 @@
 #include <memory.h>
 #include <tuple>
 #include <vector>
-
-#include "common.h"
-#include "common_cuda.h"
-#include "cublas_v2.h"
-#include "cuda_runtime_api.h"
-#include "cudnn.h"
-
-#include "cublas_wrapper.h"
-#include "kernel_db.h"
-#include "operators.h"
-#include "proto/onnx.pb.h"
 
 #include <fmt/core.h>
 

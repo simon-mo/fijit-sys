@@ -1,9 +1,8 @@
 //
 // Created by Simon Mo on 2019-03-16.
 //
-#include "common_cuda.h"
-#include "cublas_v2.h"
-#include "cublas_wrapper.h"
+#include "common/common_cuda.h"
+#include "operators/cublas_wrapper.h"
 
 using namespace onnx;
 using namespace std;

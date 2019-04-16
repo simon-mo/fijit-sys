@@ -1,12 +1,11 @@
 #ifndef OPERATORS_H
 #define OPERATORS_H
 
-#include "cublas_v2.h"
-#include "cuda.h"
-#include "cuda_runtime.h"
-#include "cudnn.h"
+#include "common/common.h"
+#include "common/common_cuda.h"
+#include "operators/abstract_operators.h"
+#include "utils/onnx_helper.h"
 
-#include "proto/onnx.pb.h"
 #include <fmt/core.h>
 
 #include <iostream>
@@ -15,10 +14,6 @@
 #include <tuple>
 #include <unordered_set>
 #include <vector>
-
-#include "abstract_operators.h"
-#include "common.h"
-#include "cudnn_wrapper.h"
 
 using namespace onnx;
 using namespace std;

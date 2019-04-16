@@ -1,7 +1,7 @@
-#include "backtrace.h"
-#include "common_cuda.h"
-#include "events.h"
+#include "common/common_cuda.h"
 #include "fijit.h"
+#include "runtime/events.h"
+#include "utils/backtrace.h"
 #include <chrono>
 #include <fstream>
 #include <iostream>
@@ -11,7 +11,7 @@
 
 #include "fmt/ostream.h"
 
-#include "reporter.h"
+#include "runtime/reporter.h"
 
 #include "cxxopts/cxxopts.hpp"
 #include <glog/logging.h>

@@ -1,11 +1,12 @@
+#include "utils/kernel_db.h"
+
 #include <cassert>
 #include <memory>
 #include <vector>
 
 #include "redox.hpp"
 
-#include "common.h"
-#include "kernel_db.h"
+#include "common/common.h"
 
 using namespace redox;
 using namespace std;

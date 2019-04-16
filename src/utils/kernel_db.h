@@ -6,7 +6,7 @@
 #include <tuple>
 #include <vector>
 
-#include "common.h"
+#include "common/common.h"
 #include "redox.hpp"
 
 using namespace std;

@@ -1,8 +1,8 @@
-#include "common_cuda.h"
-#include "cuda.h"
-#include "memory_manager.h"
-#include "onnx_helper.h"
-#include "proto/onnx.pb.h"
+#include "common/common_cuda.h"
+
+#include "runtime/memory_manager.h"
+#include "utils/onnx_helper.h"
+
 #include <cassert>
 #include <iostream>
 

@@ -5,7 +5,7 @@
 #ifndef FIJIT_SYS_EVENTS_H
 #define FIJIT_SYS_EVENTS_H
 
-#include "cuda.h"
+#include "common/common_cuda.h"
 #include <chrono>
 #include <list>
 #include <memory>

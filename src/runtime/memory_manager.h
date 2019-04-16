@@ -1,8 +1,9 @@
 #ifndef FIJIT_SYS_MEMORY_MANAGER_H
 #define FIJIT_SYS_MEMORY_MANAGER_H
 
-#include "cuda.h"
-#include "proto/onnx.pb.h"
+#include "common/common_cuda.h"
+#include "utils/onnx_helper.h"
+
 #include <functional>
 #include <string>
 #include <tuple>

@@ -10,6 +10,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS "ON")
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 include_directories(${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 include(cmake/cuda.cmake)
 include(cmake/FindLibunwind.cmake)
@@ -20,11 +21,18 @@ add_subdirectory(third_party/rapidjson)
 add_subdirectory(third_party/glog EXCLUDE_FROM_ALL)
 add_subdirectory(third_party/fmt)
 
+macro(CUDA_TARGET)
+    target_compile_features(${ARGV} PUBLIC cxx_std_14)
+    set_target_properties(${ARGV} PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+endmacro(CUDA_TARGET)
+
 # Our Main Executable is fijit-sys binary
 add_executable(${PROJECT_NAME}
                src/main.cu
-               src/abstract_operators.h
+               src/fijit.h
+               src/fijit.cu
                third_party/cxxopts/cxxopts.hpp)
+CUDA_TARGET(${PROJECT_NAME})
 
 target_link_libraries(${PROJECT_NAME}
                       proto
@@ -32,68 +40,68 @@ target_link_libraries(${PROJECT_NAME}
                       ${LIBUNWIND_LIBRARIES}
                       glog::glog)
 
-# CPU Only Libraries
-add_library(fijit-lib
-            src/kernel_db.h
-            src/kernel_db.cc
-            src/common.h
-            src/onnx_helper.h
-            src/onnx_helper.cc
-            src/backtrace.h)
-target_link_libraries(fijit-lib redox proto)
-target_link_libraries(${PROJECT_NAME} fijit-lib)
-target_compile_features(fijit-lib PUBLIC cxx_std_14)
-set_target_properties(fijit-lib PROPERTIES LINKER_LANGUAGE CXX)
+add_library(fijit-utils
+    src/utils/backtrace.h
+    src/utils/onnx_helper.h
+    src/utils/onnx_helper.cc
+    src/utils/kernel_db.cc
+    src/utils/kernel_db.h
+    src/common/common.h
+)
+target_link_libraries(fijit-utils redox proto)
+target_compile_features(fijit-utils PUBLIC cxx_std_14)
 
 # GPU Only Libraries
+add_library(common-cuda
+    src/common/common_cuda.h
+    src/common/common_cuda.cu
+)
+target_link_libraries(common-cuda
+    CUDA::cudart
+    CUDA::cuda
+    CUDA::cudnn
+    CUDA::cublas
+)
+CUDA_TARGET(common-cuda)
 
-add_library(cuda_lib
-            src/common_cuda.cu
-            src/common_cuda.h
-            src/common.h
-            src/operators.h
-            src/operators.cu
-            src/memory_manager.h
-            src/memory_manager.cu
-            src/kernel_db.h
-            src/cudnn_wrapper.cu
-            src/cudnn_wrapper.h
-            src/onnx_helper.h
-            src/abstract_operators.h
-            src/cublas_wrapper.h
-            src/cublas_wrapper.cu
-            src/reporter.h
-            src/reporter.cu
-            src/model_manager.h
-            src/model_manager.cu
-            src/scheduler.cu
-            src/scheduler.h
-            third_party/concurrentqueue/blockingconcurrentqueue.h
-            third_party/concurrentqueue/concurrentqueue.h
-            src/executor.h
-            src/executor.cu
-            src/events.h
-            src/events.cu
-            src/fijit.h
-            src/fijit.cu
-            src/onnx_helper.h)
+add_library(operators
+    src/operators/abstract_operators.h
+    src/operators/cublas_wrapper.cu
+    src/operators/cublas_wrapper.h
+    src/operators/cudnn_wrapper.cu
+    src/operators/cudnn_wrapper.h
+    src/operators/operators.cu
+    src/operators/operators.h
+)
+target_link_libraries(operators
+    common-cuda
+    fijit-utils
+    fmt::fmt
+)
+CUDA_TARGET(operators)
 
-target_link_libraries(cuda_lib
-                      redox
-                      CUDA::cudart
-                      CUDA::cuda
-                      CUDA::cudnn
-                      CUDA::cublas
-                      fijit-lib
-                      fmt::fmt
-                      rapidjson
-                      proto)
-target_link_libraries(${PROJECT_NAME} cuda_lib)
-target_compile_features(cuda_lib PUBLIC cxx_std_14)
-set_target_properties(cuda_lib PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
-target_include_directories(cuda_lib BEFORE PUBLIC /usr/local/cuda/include)
-target_include_directories(${PROJECT_NAME} BEFORE
-                           PUBLIC /usr/local/cuda/include)
-set(CMAKE_CXX_COMPILER /usr/bin/clang++-8)
-set(CUDA_HOST_COMPILER /usr/bin/clang++-3.8)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fcolor-diagnostics")
+add_library(runtime
+    src/runtime/events.cu
+    src/runtime/events.h
+    src/runtime/executor.cu
+    src/runtime/executor.h
+    src/runtime/memory_manager.cu
+    src/runtime/memory_manager.h
+    src/runtime/model_manager.cu
+    src/runtime/model_manager.h
+    src/runtime/reporter.cu
+    src/runtime/reporter.h
+    src/runtime/scheduler.cu
+    src/runtime/scheduler.h
+)
+target_link_libraries(runtime
+    common-cuda
+    operators
+    fijit-utils
+    rapidjson
+    fmt::fmt
+)
+CUDA_TARGET(runtime)
+                      
+target_link_libraries(${PROJECT_NAME} fijit-utils common-cuda operators runtime)
+

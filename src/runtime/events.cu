@@ -1,8 +1,6 @@
 #include "events.h"
 
-#include "cuda.h"
-
-#include "common_cuda.h"
+#include "common/common_cuda.h"
 
 #include <chrono>
 #include <iostream>

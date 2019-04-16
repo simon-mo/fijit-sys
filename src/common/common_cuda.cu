@@ -1,7 +1,7 @@
 //
 // Created by Simon Mo on 2019-03-13.
 //
-#include "common_cuda.h"
+#include "common/common_cuda.h"
 #include <chrono>
 #include <vector>
 

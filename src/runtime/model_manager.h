@@ -5,9 +5,9 @@
 #ifndef FIJIT_SYS_MODEL_MANAGER_H
 #define FIJIT_SYS_MODEL_MANAGER_H
 
-#include "memory_manager.h"
-#include "operators.h"
-#include "proto/onnx.pb.h"
+#include "operators/operators.h"
+#include "runtime/memory_manager.h"
+#include "utils/onnx_helper.h"
 
 #include <memory>
 #include <unordered_map>

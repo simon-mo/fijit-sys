@@ -1,5 +1,5 @@
 #include "fijit.h"
-#include "onnx_helper.h"
+#include "utils/onnx_helper.h"
 
 #include <algorithm>
 #include <chrono>

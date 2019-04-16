@@ -5,7 +5,7 @@
 #ifndef FIJIT_SYS_SCHEDULER_H
 #define FIJIT_SYS_SCHEDULER_H
 
-#include "model_manager.h"
+#include "runtime/model_manager.h"
 
 #include "concurrentqueue/concurrentqueue.h"
 

@@ -5,9 +5,9 @@
 #ifndef FIJIT_SYS_OPERATOR_H
 #define FIJIT_SYS_OPERATOR_H
 
-#include "cuda.h"
-#include "events.h"
-#include "model_manager.h"
+#include "common/common_cuda.h"
+#include "runtime/events.h"
+#include "runtime/model_manager.h"
 
 #include "concurrentqueue/concurrentqueue.h"
 

@@ -1,9 +1,8 @@
 //
 // Created by Simon Mo on 2019-03-20.
 //
-#include "onnx_helper.h"
+#include "utils/onnx_helper.h"
 
-#include "proto/onnx.pb.h"
 #include <fcntl.h>
 #include <fstream>
 #include <memory>
