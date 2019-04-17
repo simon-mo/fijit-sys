@@ -4,7 +4,7 @@ project(fijit-sys LANGUAGES CXX CUDA)
 enable_language(CXX)
 
 set(CMAKE_CXX_COMPILER)
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_EXPORT_COMPILE_COMMANDS "ON")
 
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
@@ -107,4 +107,19 @@ target_compile_definitions(runtime
 )
                       
 target_link_libraries(${PROJECT_NAME} fijit-utils common-cuda operators runtime)
+
+set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
+find_package(GoogleBenchmark REQUIRED)
+include_directories(${benchmark_INCLUDE_DIRS})
+add_executable(benchmark
+    src/benchmarks/ops.cu
+)
+CUDA_TARGET(benchmark)
+target_link_libraries(benchmark ${benchmark_LIBRARIES} pthread fijit-utils common-cuda operators runtime 
+                        proto
+                      ${PROTOBUF_LIBRARY}
+                      glog::glog
+)
+
+
 
