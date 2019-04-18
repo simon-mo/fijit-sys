@@ -115,8 +115,6 @@ bool TVMOperator::operator==(const TVMOperator &rhs) const {
          args == rhs.args;
 }
 
-LogicalOperator::LogicalOperator(bool is_noop) : is_noop{is_noop} {};
-
 LogicalOperator::LogicalOperator(NodeProto node_,
                                  decltype(io_shapes) shape_map) {
   node = node_;
@@ -271,8 +269,12 @@ LogicalOperator::realize(int max_blocks, cudnnHandle_t *handle,
   }
 
   if (type == "Conv") {
-    // return realize_tvm(max_blocks);
-    return realize_cudnn(handle);
+    //    try {
+    return realize_tvm(max_blocks);
+    //    } catch (NoSuchOpException &e) {
+    //      return realize_cudnn(handle);
+    //    }
+
   } else if (type == "AveragePool" || type == "MaxPool" || type == "Sum" ||
              type == "Add" || type == "Relu" || type == "BatchNormalization" ||
              type == "Softmax" || type == "GlobalAveragePool") {
@@ -280,6 +282,7 @@ LogicalOperator::realize(int max_blocks, cudnnHandle_t *handle,
   } else if (type == "Gemm") {
     return realize_cublas(cublasHandle);
   } else if (type == "Reshape" || type == "Flatten") {
+
     int dim = 1;
     for (auto d : input_shape.type().tensor_type().shape().dim()) {
       dim *= d.dim_value();
@@ -287,36 +290,33 @@ LogicalOperator::realize(int max_blocks, cudnnHandle_t *handle,
     auto ptr = make_shared<ReshapeOperator>(dim);
     inject_kwargs(ptr);
     return ptr;
-  }  else {
+
+  } else {
     throw runtime_error("Can't realize logical operator");
   }
 }
 
 shared_ptr<PhysicalOperator>
 LogicalOperator::realize_preloaded(int max_blocks) {
-  return preloaded_ops.at(0);
-  // if (type == "Conv") {
-  //   return preloaded_ops.at(max_blocks);
-  // } else {
-  //   return preloaded_ops.at(0);
-  // }
+  if (type == "Conv") {
+    return preloaded_ops.at(max_blocks);
+  } else {
+    return preloaded_ops.at(0);
+  }
 }
 
 void LogicalOperator::preload(vector<int> possible_max_blocks,
                               cudnnHandle_t *handle,
                               cublasHandle_t *cublasHandle) {
-  shared_ptr<PhysicalOperator> op = realize(0, handle, cublasHandle);
-  preloaded_ops.insert({0, op});
-
-  // if (type == "Conv") {
-  //   for (int block : possible_max_blocks) {
-  //     shared_ptr<PhysicalOperator> op = realize(block, handle, cublasHandle);
-  //     preloaded_ops.insert({block, op});
-  //   }
-  // } else {
-  //   shared_ptr<PhysicalOperator> op = realize(0, handle, cublasHandle);
-  //   preloaded_ops.insert({0, op});
-  // }
+  if (type == "Conv") {
+    for (int block : possible_max_blocks) {
+      shared_ptr<PhysicalOperator> op = realize(block, handle, cublasHandle);
+      preloaded_ops.insert({block, op});
+    }
+  } else {
+    shared_ptr<PhysicalOperator> op = realize(0, handle, cublasHandle);
+    preloaded_ops.insert({0, op});
+  }
 
   preloaded = true;
 }

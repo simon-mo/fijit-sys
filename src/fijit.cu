@@ -1,6 +1,5 @@
 #include "fijit.h"
 #include "utils/onnx_helper.h"
-#include "runtime/common.h"
 
 #include <algorithm>
 #include <chrono>
@@ -19,7 +18,7 @@ void Fijit::add_model(string path, string model_name,
 
   CHECK(model_protos.find(model_name) == model_protos.end());
   LOG(INFO) << fmt::format("Adding model {}", model_name);
-  model_protos.emplace(model_name, move(model));
+  model_protos.insert({model_name, model});
   model_manager->register_model(model, model_name, possible_blocks_config);
 }
 
@@ -36,11 +35,9 @@ void Fijit::use_scheduler(string scheduler_name, map<string, int> config) {
   CHECK(scheduler_name == *ALLOWED_SCHEDULERS.begin());
   CHECK(scheduler_name == "StaticScheduler");
 
-  cudaThreadContext ctx {&cudaCtx, &handle, &cublasHandle};
-
   scheduler =
-      make_shared<StaticScheduler>(ctx, sched_queue, exec_queue, align_db, model_manager);
-  executor = make_shared<Executor>(ctx, exec_queue, /*num_streams*/ 1);
+      make_shared<StaticScheduler>(max_block, &cudaCtx, &handle, &cublasHandle);
+  executor = make_shared<Executor>(&cudaCtx);
 }
 
 void Fijit::use_workload(int qps_, int total_query_) {
@@ -48,24 +45,42 @@ void Fijit::use_workload(int qps_, int total_query_) {
   total_query = total_query_;
 }
 
-// shared_ptr<vector<LogicalOperator>> Fijit::generate_query(string model_name,
-//                                                           int replica_id) {
-  // shared_ptr<vector<LogicalOperator>> ops =
-  //     model_manager->instantiate_model(model_name, replica_id);
+shared_ptr<vector<LogicalOperator>> Fijit::generate_query(string model_name,
+                                                          int replica_id) {
+  shared_ptr<vector<LogicalOperator>> ops =
+      model_manager->instantiate_model(model_name, replica_id);
 
-  // auto all_blocks = model_manager->get_all_blocks_config(model_name);
-  // for (int i = 0; i < ops->size(); ++i) {
-  //   ops->at(i).preload(all_blocks, &handle, &cublasHandle);
-  // }
+  auto all_blocks = model_manager->get_all_blocks_config(model_name);
+  for (int i = 0; i < ops->size(); ++i) {
+    ops->at(i).preload(all_blocks, &handle, &cublasHandle);
+  }
 
-  // model_manager->register_input(model_name, replica_id, input,
-  //                               input_tensor_name);
+  model_manager->register_input(model_name, replica_id, input,
+                                input_tensor_name);
 
-  // return ops;
-// }
+  return ops;
+}
 
 void Fijit::prepare() {
   fijit_prepared = true;
+
+  // So far we support one model one replica and one input
+  for (auto &kv : model_protos) {
+    string model_name = kv.first;
+    LOG(INFO) << fmt::format("Preparing input for model {}", model_name);
+
+    auto scheduler_queue =
+        make_shared<ReaderWriterQueue<vector<LogicalOperator>>>();
+    auto dispatch_queue =
+        scheduler->register_model_queue(model_name, scheduler_queue);
+
+    sched_queues.insert({model_name, scheduler_queue});
+    exec_queues.insert({model_name, dispatch_queue});
+    executor->register_queue(model_name, dispatch_queue);
+
+    shared_ptr<vector<LogicalOperator>> queries = generate_query(model_name);
+    model_to_queries.insert({model_name, queries});
+  }
 
   scheduler_thread = thread([&]() { scheduler->start(); });
   executor_thread = thread([&]() { executor->start(); });

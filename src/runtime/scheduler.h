@@ -5,10 +5,7 @@
 #ifndef FIJIT_SYS_SCHEDULER_H
 #define FIJIT_SYS_SCHEDULER_H
 
-#include "runtime/common.h"
-#include "common/common_cuda.h"
 #include "runtime/model_manager.h"
-#include "utils/align_map.h"
 
 #include "readerwriterqueue/readerwriterqueue.h"
 
@@ -18,30 +15,44 @@
 using namespace moodycamel;
 using namespace std;
 
-class BaseScheduler {
+class Scheduler {
 public:
+  shared_ptr<ReaderWriterQueue<shared_ptr<PhysicalOperator>>>
+  register_model_queue(string model_name,
+                       shared_ptr<ReaderWriterQueue<vector<LogicalOperator>>> q);
+
+  void register_total_resource(shared_ptr<int> total_resource_estimate);
+
   virtual void schedule() = 0;
+
   virtual void start() = 0;
+
   void stop();
 
 protected:
   bool shouldStop = false;
+
+  unordered_map<string, shared_ptr<ReaderWriterQueue<vector<LogicalOperator>>>>
+      logical_op_queues;
+  unordered_map<string,
+                shared_ptr<ReaderWriterQueue<shared_ptr<PhysicalOperator>>>>
+      physical_op_queues;
+
+  shared_ptr<int> total_resource = make_shared<int>(80);
 };
 
-class StaticScheduler : public BaseScheduler {
+class StaticScheduler : public Scheduler {
 public:
-  StaticScheduler(cudaThreadContext ctx, 
-  RequestQueue req_q, InstQueue inst_q, shared_ptr<AlignmentDB> db, shared_ptr<ModelManager> mm);
-
+  StaticScheduler(int max_blocks_per_model, CUcontext *ctx,
+                  cudnnHandle_t *handle, cublasHandle_t *cublasHandle);
   void schedule() override;
   void start() override;
 
 private:
-  cudaThreadContext ctx_;
-  RequestQueue req_q_;
-  InstQueue inst_q_;
-  shared_ptr<AlignmentDB> db_;
-  shared_ptr<ModelManager> mm_;
+  int max_blocks;
+  cudnnHandle_t *handle;
+  cublasHandle_t *cublasHandle;
+  CUcontext *ctx;
 };
 
 #endif // FIJIT_SYS_SCHEDULER_H

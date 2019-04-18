@@ -25,6 +25,8 @@ using namespace onnx;
 using namespace std;
 
 const set<string> ALLOWED_SCHEDULERS = {"StaticScheduler"};
+typedef shared_ptr<ReaderWriterQueue<vector<LogicalOperator>>> SchedQueue;
+typedef shared_ptr<ReaderWriterQueue<shared_ptr<PhysicalOperator>>> ExecQueue;
 
 class Fijit {
 public:
@@ -54,8 +56,8 @@ public:
   void infer();
 
 private:
-  // shared_ptr<vector<LogicalOperator>> generate_query(string model_name,
-  //                                                    int replica_id = 0);
+  shared_ptr<vector<LogicalOperator>> generate_query(string model_name,
+                                                     int replica_id = 0);
   void wait_for_queues();
 
   map<string, ModelProto> model_protos;
@@ -82,13 +84,11 @@ private:
   // shared_ptr<vector<LogicalOperator>> queries;
   map<string, shared_ptr<vector<LogicalOperator>>> model_to_queries;
 
-  shared_ptr<BaseScheduler> scheduler;
+  shared_ptr<Scheduler> scheduler;
   shared_ptr<Executor> executor;
 
-  shared_ptr<RequestQueue> sched_queue = make_shared<RequestQueue>();;
-  shared_ptr<InstQueue> exec_queue = make_shared<InstQueue>();;
-
-  shared_ptr<AlignmentDB> align_db;
+  map<string, SchedQueue> sched_queues;
+  map<string, ExecQueue> exec_queues;
 };
 
 #endif // FIJIT_SYS_FIJIT_H

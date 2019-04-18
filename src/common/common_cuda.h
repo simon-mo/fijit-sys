@@ -65,10 +65,4 @@ CUcontext cuda_init(void);
 void CUDART_CB host_record_time(cudaStream_t stream, cudaError_t status,
                                 void *data);
 
-struct cudaThreadContext {
-  CUcontext * cudaContext;
-  cudnnHandle_t *cudnnHandle;
-  cublasHandle_t *cublasHandle;
-};
-
 #endif // FIJIT_SYS_COMMON_CUH_H

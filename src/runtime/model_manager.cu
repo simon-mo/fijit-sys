@@ -3,7 +3,6 @@
 
 #include "operators/operators.h"
 #include "utils/onnx_helper.h"
-#include "utils/align_map.h"
 
 #include <iostream>
 #include <memory>
@@ -39,25 +38,11 @@ vector<int> ModelManager::get_all_blocks_config(string model_name) {
   return possible_blocks_map.at(model_name);
 }
 
-vector<LogicalOperator>
+shared_ptr<vector<LogicalOperator>>
 ModelManager::instantiate_model(string model_name, int query_id) {
   assert(storage.find(model_name) != storage.end());
-  ModelProto& proto = storage.at(model_name);
 
-  PaddedNodeSeq seq;
-  seq.reserve(proto.graph().node_size);
-  for(int i = 0; i < proto.graph().node_size; i++) {
-    seq.push_back(i);
-  }
-  
-  return instantiate_model( model_name,  query_id,  seq);
-}
-
-vector<LogicalOperator>
-ModelManager::instantiate_model(string model_name, int query_id, PaddedNodeSeq seq) {
-  assert(storage.find(model_name) != storage.end());
-
-  ModelProto& proto = storage.at(model_name);
+  ModelProto proto = storage.at(model_name);
   shape_map_ptr shape = shape_maps.at(model_name);
 
   vector<LogicalOperator> op_queue;
@@ -67,14 +52,7 @@ ModelManager::instantiate_model(string model_name, int query_id, PaddedNodeSeq s
     static_data.insert(i.name());
   }
 
-  for(auto i : seq) {
-    if (i == -1) {
-      op_queue.emplace_back(/*is_noop*/true);
-      continue;
-    }
-    
-    auto& node = proto.graph().node(i);
-
+  for (auto node : proto.graph().node()) {
     LogicalOperator op(node, shape);
 
     for (auto inp : node.input()) {
@@ -111,7 +89,7 @@ ModelManager::instantiate_model(string model_name, int query_id, PaddedNodeSeq s
     op_queue.push_back(op);
   }
 
-  return op_queue;
+  return make_shared<decltype(op_queue)>(op_queue);
 }
 
 void ModelManager::register_input(string model_name, int query_id,
