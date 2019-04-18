@@ -3,10 +3,10 @@
 
 #include <algorithm>
 #include <chrono>
-#include <thread>
 #include <fmt/format.h>
 #include <glog/logging.h>
 #include <string>
+#include <thread>
 
 using namespace std;
 using namespace onnx;

@@ -17,7 +17,6 @@
 
 using namespace std;
 
-
 struct EventEntry {
   EventType type;
   EventSource source;

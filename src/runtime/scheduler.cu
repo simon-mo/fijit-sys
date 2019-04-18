@@ -12,16 +12,16 @@
 #include <memory>
 #include <thread>
 
-#include <glog/logging.h>
 #include "readerwriterqueue/readerwriterqueue.h"
-
+#include <glog/logging.h>
 
 using namespace std;
 using namespace chrono;
 
 shared_ptr<ReaderWriterQueue<shared_ptr<PhysicalOperator>>>
 Scheduler::register_model_queue(
-    string model_name, shared_ptr<ReaderWriterQueue<vector<LogicalOperator>>> q) {
+    string model_name,
+    shared_ptr<ReaderWriterQueue<vector<LogicalOperator>>> q) {
   logical_op_queues.insert({model_name, q});
 
   auto ops_q = make_shared<ReaderWriterQueue<shared_ptr<PhysicalOperator>>>();

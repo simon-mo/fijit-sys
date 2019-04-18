@@ -18,8 +18,9 @@ using namespace std;
 class Scheduler {
 public:
   shared_ptr<ReaderWriterQueue<shared_ptr<PhysicalOperator>>>
-  register_model_queue(string model_name,
-                       shared_ptr<ReaderWriterQueue<vector<LogicalOperator>>> q);
+  register_model_queue(
+      string model_name,
+      shared_ptr<ReaderWriterQueue<vector<LogicalOperator>>> q);
 
   void register_total_resource(shared_ptr<int> total_resource_estimate);
 

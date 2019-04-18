@@ -56,6 +56,6 @@ string report_chrome_trace(void) {
   StringBuffer buffer;
   Writer<StringBuffer> writer(buffer);
   document.Accept(writer);
-  
+
   return buffer.GetString();
 }
