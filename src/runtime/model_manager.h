@@ -8,6 +8,7 @@
 #include "operators/operators.h"
 #include "runtime/memory_manager.h"
 #include "utils/onnx_helper.h"
+#include "utils/align_map.h"
 
 #include <memory>
 #include <unordered_map>
@@ -26,12 +27,13 @@ public:
 
   vector<int> get_all_blocks_config(string);
 
-  shared_ptr<vector<LogicalOperator>> instantiate_model(string, int);
+  vector<LogicalOperator> instantiate_model(string model_name, int query_id);
+  vector<LogicalOperator> instantiate_model(string model_name, int query_id, PaddedNodeSeq seq);
 
   void register_input(string, int, TensorProto &);
   void register_input(string, int, TensorProto &, string);
 
-private:
+private:  
   shared_ptr<StaticMemoryManager> smm;
   shared_ptr<DynamicMemoryManager> dmm;
 

@@ -5,11 +5,10 @@
 #ifndef FIJIT_SYS_OPERATOR_H
 #define FIJIT_SYS_OPERATOR_H
 
+#include "runtime/common.h"
 #include "common/common_cuda.h"
 #include "runtime/events.h"
 #include "runtime/model_manager.h"
-
-#include "readerwriterqueue/readerwriterqueue.h"
 
 #include <list>
 #include <memory>
@@ -19,28 +18,21 @@
 using namespace moodycamel;
 using namespace std;
 
-using PhysicalOpQueue =
-    shared_ptr<ReaderWriterQueue<shared_ptr<PhysicalOperator>>>;
-
-struct ExecutorCtx {
-  string model_name;
-  cudaStream_t stream;
-  PhysicalOpQueue queue;
-};
-
 class Executor {
 public:
-  Executor(CUcontext *ctx_) : ctx(ctx_){};
-  void register_queue(string model_name, PhysicalOpQueue queue_);
+  Executor(cudaThreadContext ctx, InstQueue q, int num_streams);
   void start();
   void stop();
 
 private:
   void wait();
-  std::list<ExecutorCtx> executor_queues;
   bool should_stop = false;
 
-  CUcontext *ctx;
+  cudaThreadContext ctx_;
+  InstQueue q_;
+
+  vector<cudaStream_t> streams;
+  int num_streams_;
 
   EventRegistrar &events_registrar =
       EventRegistrar::get_global_event_registrar();

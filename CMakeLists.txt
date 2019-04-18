@@ -81,16 +81,17 @@ target_link_libraries(operators
 CUDA_TARGET(operators)
 
 add_library(runtime
+    src/runtime/common.h
     src/runtime/events.cu
     src/runtime/events.h
-    src/runtime/executor.cu
-    src/runtime/executor.h
     src/runtime/memory_manager.cu
     src/runtime/memory_manager.h
     src/runtime/model_manager.cu
     src/runtime/model_manager.h
     src/runtime/reporter.cu
     src/runtime/reporter.h
+    src/runtime/executor.cu
+    src/runtime/executor.h
     src/runtime/scheduler.cu
     src/runtime/scheduler.h
 )
@@ -108,18 +109,20 @@ target_compile_definitions(runtime
                       
 target_link_libraries(${PROJECT_NAME} fijit-utils common-cuda operators runtime)
 
-set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
-find_package(GoogleBenchmark REQUIRED)
-include_directories(${benchmark_INCLUDE_DIRS})
-add_executable(benchmark
-    src/benchmarks/ops.cu
-)
-CUDA_TARGET(benchmark)
-target_link_libraries(benchmark ${benchmark_LIBRARIES} pthread fijit-utils common-cuda operators runtime 
-                        proto
-                      ${PROTOBUF_LIBRARY}
-                      glog::glog
-)
+
+# Benchmark Target
+# set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
+# find_package(GoogleBenchmark REQUIRED)
+# include_directories(${benchmark_INCLUDE_DIRS})
+# add_executable(benchmark
+#     src/benchmarks/ops.cu
+# )
+# CUDA_TARGET(benchmark)
+# target_link_libraries(benchmark ${benchmark_LIBRARIES} pthread fijit-utils common-cuda operators runtime 
+#                         proto
+#                       ${PROTOBUF_LIBRARY}
+#                       glog::glog
+# )
 
 
 

@@ -1,4 +1,4 @@
-#include "executor.h"
+#include "runtime/executor.h"
 
 #include "common/common.h"
 #include "common/common_cuda.h"
@@ -13,11 +13,15 @@
 
 using namespace std;
 
-void Executor::register_queue(string model_name, PhysicalOpQueue queue) {
-  cudaStream_t s;
-  cudaStreamCreate(&s);
-  ExecutorCtx ctx = {model_name, s, queue};
-  executor_queues.emplace_back(ctx);
+Executor::Executor(cudaThreadContext ctx, InstQueue q, int num_streams): 
+  ctx_(ctx), q_(q), num_streams_(num_streams) {
+  streams.reserve(num_streams);
+  
+  for(size_t i = 0; i < num_streams; i++) {
+    cudaStream_t s;
+    cudaStreamCreate(&s);
+    streams.push_back(s);
+  }
 }
 
 void Executor::stop() {
@@ -26,51 +30,39 @@ void Executor::stop() {
 }
 
 void Executor::start() {
-  CHECK_CUDEVICE(cuCtxSetCurrent(*ctx));
+  CHECK_CUDEVICE(cuCtxSetCurrent(*ctx_.cudaContext));
+  VLIW inst;
+  int cur_stream_id = 0;
 
   while (true) {
     if (should_stop) {
       break;
     }
 
-    shared_ptr<PhysicalOperator> op = nullptr;
+    if (!(q_->try_dequeue(inst))) {continue;};
 
-    int tid_counter = 0;
-    for (ExecutorCtx &ctx_struct : executor_queues) {
-      tid_counter++;
+    CHECK(inst.size() <= num_streams_);
 
-      // while (ctx_struct.queue->try_dequeue(op)) {
-      if (!ctx_struct.queue->try_dequeue(op)) {
-        continue;
+    //NOTE
+    // Now we are at the point where the exectuor need to coalsce instruction
+    // if necessary, but for now, let's make it work with basic time-multiplex
+    // vector<cudaEvent_t> events;
+    for (auto& op: inst) {
+      if (op.is_event) {
+        events_registrar.record(op.event_type, EventSource::Executor, "inst_queue", /*tid*/ 0);
+      } else {
+        shared_ptr<PhysicalOperator> kernel = op.realize(
+          /*max_block*/0, ctx_.cudnnHandle, ctx_.cublasHandle);
+        kernel->dispatch(streams[0]);
+        // cur_stream_id ++;
       }
-      string op_name =
-          fmt::format("{}-{}", ctx_struct.model_name, op->get_name());
-      // events_registrar.record(EventType::BEGIN, EventSource::Executor,
-      //                         op_name);
-      if (op->is_timing && op->event_type == EventType::BEGIN) {
-        events_registrar.record(EventType::BEGIN, EventSource::GPU, op_name,
-                                tid_counter, ctx_struct.stream);
-      }
-
-      op->dispatch(ctx_struct.stream);
-
-      if (op->is_timing && op->event_type == EventType::END) {
-        events_registrar.record(EventType::END, EventSource::GPU, op_name,
-                                tid_counter, ctx_struct.stream);
-      }
-
-      // events_registrar.record(EventType::END, EventSource::Executor,
-      // op_name);
-      // }
     }
   }
 }
 
 void Executor::wait() {
-  for (ExecutorCtx &ctx_struct : executor_queues) {
-    while (ctx_struct.queue->size_approx() != 0) {
-      std::this_thread::sleep_for(10ms);
-    }
+  while (q_->size_approx() != 0) {
+    std::this_thread::sleep_for(10ms);
   }
   cudaDeviceSynchronize();
 }

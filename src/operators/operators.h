@@ -61,6 +61,8 @@ private:
 
 class LogicalOperator {
 public:
+  LogicalOperator(bool is_noop);
+  LogicalOperator(EventType event) : is_event(true), event_type(event) {};
   LogicalOperator(NodeProto, shared_ptr<unordered_map<string, ValueInfoProto>>);
 
   void preload(vector<int> possible_max_blocks, cudnnHandle_t *handle,
@@ -84,6 +86,12 @@ public:
       op->set_argument(k, w);
     }
   }
+
+
+  bool is_noop=false;
+
+  bool is_event=false;
+  EventType event_type;
 
 private:
   string type;

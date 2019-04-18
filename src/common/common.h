@@ -3,14 +3,22 @@
 
 #include <string>
 #include <tuple>
-#include <unordered_map>
+
+
+#include "proto/onnx.pb.h"
 
 using namespace std;
+using namespace onnx;
 
-enum KERNEL_ARG { INPUT, OUTPUT, DATA };
+// FIJIT Type Definitions
+enum KERNEL_ARG { 
+  INPUT, 
+  OUTPUT, 
+  DATA 
+};
 typedef tuple<int, int, int> k_dim3;
 
-// Using Chrome Trace as a guide
+// Event Type: Chrome Trace as a guide
 // https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU/preview
 enum class EventType : char {
   BEGIN = 'B',
@@ -24,5 +32,7 @@ enum class EventSource : char {
   Executor = 'E',
   GPU = 'G',
 };
+
+
 
 #endif /* COMMON_H */
