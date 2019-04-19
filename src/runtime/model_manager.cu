@@ -105,3 +105,7 @@ void ModelManager::register_input(string model_name, int query_id,
   };
   dmm->register_tensor(key, tensor);
 }
+
+shape_map_ptr ModelManager::get_shape_map(string model) {
+  return shape_maps.at(model);
+}

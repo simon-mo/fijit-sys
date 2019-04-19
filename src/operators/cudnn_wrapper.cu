@@ -3,6 +3,9 @@
 #include "common/common.h"
 #include "common/common_cuda.h"
 
+#include "fmt/format.h"
+#include "glog/logging.h"
+
 #include <cassert>
 #include <vector>
 
@@ -558,4 +561,123 @@ void ConvOperator::dispatch(cudaStream_t s) {
       kernel_descriptor, CUDevicePtrConstCast(data), convolution_descriptor,
       CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_GEMM, nullptr, 0, scalers + 1,
       output_descriptor, CUDevicePtrCast(output));
+}
+
+Im2ColOperator::Im2ColOperator(
+    cudnnHandle_t *handle_, const NodeProto &node,
+    shared_ptr<unordered_map<string, ValueInfoProto>> io_shapes)
+    : handle{handle_} {
+  CHECK_CUDNN(cudnnCreateTensorDescriptor(&input_descriptor));
+  CHECK_CUDNN(cudnnCreateFilterDescriptor(&kernel_descriptor));
+  CHECK_CUDNN(cudnnCreateConvolutionDescriptor(&convolution_descriptor));
+
+  string input_name = node.input().Get(0);
+  string filter_name = node.input().Get(1);
+  string output_name = node.output().Get(0);
+
+  auto shape_vectors = [](ValueInfoProto p) {
+    vector<int> shapes(0);
+    for (auto d : p.type().tensor_type().shape().dim()) {
+      shapes.push_back(d.dim_value());
+    }
+    return shapes;
+  };
+
+  auto input_shapes = shape_vectors(io_shapes->at(input_name));
+  auto kernel_shapes = shape_vectors(io_shapes->at(filter_name));
+  auto output_shapes = shape_vectors(io_shapes->at(output_name));
+
+  auto attribute_vectors = [](NodeProto n, string attribute, int default_ = 0) {
+    vector<int> values;
+    for (auto attri : n.attribute()) {
+      if (attri.name() == attribute) {
+        for (auto val : attri.ints()) {
+          values.push_back(val);
+        }
+      }
+    }
+
+    if (values.size() == 0) {
+      values.push_back(default_);
+      values.push_back(default_);
+    }
+    return values;
+  };
+
+  auto kernel_shape = attribute_vectors(node, "kernel_shape", 0);
+  auto pads = attribute_vectors(node, "pads", 0);
+  auto strides = attribute_vectors(node, "strides", 1);
+  auto dilations = attribute_vectors(node, "dilations", 1);
+
+  CHECK_CUDNN(cudnnSetTensor4dDescriptor(input_descriptor,
+                                         /*format=*/CUDNN_TENSOR_NCHW,
+                                         /*dataType=*/CUDNN_DATA_FLOAT,
+                                         /*batch_size=*/input_shapes[0],
+                                         /*channels=*/input_shapes[1],
+                                         /*image_height=*/input_shapes[2],
+                                         /*image_width=*/input_shapes[3]));
+
+  CHECK_CUDNN(cudnnSetFilter4dDescriptor(kernel_descriptor,
+                                         /*dataType=*/CUDNN_DATA_FLOAT,
+                                         /*format=*/CUDNN_TENSOR_NCHW,
+                                         /*out_channels=*/kernel_shapes[0],
+                                         /*in_channels=*/kernel_shapes[1],
+                                         /*kernel_height=*/kernel_shapes[2],
+                                         /*kernel_width=*/kernel_shapes[3]));
+
+  CHECK_CUDNN(
+      cudnnSetConvolution2dDescriptor(convolution_descriptor,
+                                      /*pad_height=*/pads[0],
+                                      /*pad_width=*/pads[1],
+                                      /*vertical_stride=*/strides[0],
+                                      /*horizontal_stride=*/strides[1],
+                                      /*dilation_height=*/dilations[0],
+                                      /*dilation_width=*/dilations[1],
+                                      /*mode=*/CUDNN_CROSS_CORRELATION,
+                                      /*computeType=*/CUDNN_DATA_FLOAT));
+
+  int batch_size{0}, channels{0}, height{0}, width{0};
+  CHECK_CUDNN(cudnnGetConvolution2dForwardOutputDim(
+      convolution_descriptor, input_descriptor, kernel_descriptor, &batch_size,
+      &channels, &height, &width));
+
+  CHECK(batch_size == output_shapes[0]);
+  CHECK(channels == output_shapes[1]);
+  CHECK(height == output_shapes[2]);
+  CHECK(width == output_shapes[3]);
+
+  output_buffer_size = (batch_size * height * width) *
+                       (kernel_shapes[1] * kernel_shapes[2] * kernel_shapes[3]);
+}
+
+void Im2ColOperator::set_argument(KERNEL_ARG arg, CUdeviceptr ptr) {
+  switch (arg) {
+  case (INPUT):
+    input = ptr;
+    input_is_set = true;
+    break;
+  case (DATA):
+    data = ptr;
+    data_is_set = true;
+    break;
+  case (OUTPUT):
+    output = ptr;
+    output_is_set = true;
+    break;
+  default:;
+  }
+}
+
+void Im2ColOperator::dispatch(cudaStream_t s) {
+  CHECK(input_is_set && output_is_set && data_is_set);
+
+  CHECK_CUDNN(cudnnSetStream(*handle, s));
+
+  CHECK_CUDNN(cudnnIm2Col(
+      /* cudnnHandle_t                   handle */ *handle,
+      /* cudnnTensorDescriptor_t         srcDesc*/ input_descriptor,
+      /* const void                      *srcData*/ CUDevicePtrConstCast(input),
+      /* cudnnFilterDescriptor_t         filterDesc*/ kernel_descriptor,
+      /* cudnnConvolutionDescriptor_t    convDesc*/ convolution_descriptor,
+      /* void                            *colBuffer*/ CUDevicePtrCast(output)));
 }

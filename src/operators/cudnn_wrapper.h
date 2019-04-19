@@ -120,4 +120,24 @@ private:
   cudnnTensorDescriptor_t output_descriptor;
 };
 
+class Im2ColOperator : public CUDNNOperator {
+public:
+  Im2ColOperator(cudnnHandle_t *handle_, const NodeProto &node,
+                 shared_ptr<unordered_map<string, ValueInfoProto>> io_shapes);
+  void dispatch(cudaStream_t) override;
+  void set_argument(KERNEL_ARG, CUdeviceptr) override;
+
+  string get_name() { return "CudnnIm2Col"; };
+
+  int output_buffer_size = -1;
+  cudnnTensorDescriptor_t input_descriptor;
+  cudnnFilterDescriptor_t kernel_descriptor;
+  cudnnConvolutionDescriptor_t convolution_descriptor;
+
+private:
+  cudnnHandle_t *handle;
+  CUdeviceptr input, output, data;
+  bool input_is_set = false, output_is_set = false, data_is_set = false;
+};
+
 #endif // FIJIT_SYS_CUDNN_WRAPPER_H

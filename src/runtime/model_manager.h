@@ -31,6 +31,8 @@ public:
   void register_input(string, int, TensorProto &);
   void register_input(string, int, TensorProto &, string);
 
+  shape_map_ptr get_shape_map(string model_name);
+
 private:
   shared_ptr<StaticMemoryManager> smm;
   shared_ptr<DynamicMemoryManager> dmm;

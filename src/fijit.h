@@ -19,53 +19,61 @@
 #include "runtime/scheduler.h"
 #include "utils/onnx_helper.h"
 
-#include "readerwriterqueue/readerwriterqueue.h"
+#include "rapidjson/document.h"
 
+using namespace rapidjson;
 using namespace onnx;
 using namespace std;
-
-const set<string> ALLOWED_SCHEDULERS = {"StaticScheduler"};
-typedef shared_ptr<ReaderWriterQueue<vector<LogicalOperator>>> SchedQueue;
-typedef shared_ptr<ReaderWriterQueue<shared_ptr<PhysicalOperator>>> ExecQueue;
 
 class Fijit {
 public:
   Fijit();
-  ~Fijit();
+  ~Fijit() = default;
 
+  // Use scheduler
+  // void use_scheduler(string scheduler_name, map<string, int> config);
+
+  // Use a static workload generator
+  void use_workload(string path, int num_queries);
+
+  // Prepare for inference benchmark, this will
+  // - Load all operators
+  // - Register all memories
+  // void prepare();
+
+  // A blocking call for profiling.
+  void infer();
+
+private:
   // Add a model for profile
   void add_model(string path, string model_name,
                  vector<int> possible_blocks_config);
 
   // Add certain query load. Note that this is assume to be consistent across
   // configs
-  void add_query(string path, string input_name);
+  void add_query(string model_name, string path, string input_name);
 
-  // Use scheduler
-  void use_scheduler(string scheduler_name, map<string, int> config);
+  // Wrapper around add_model and add_query
+  void register_workload(Document &doc);
 
-  // Use a static workload generator
-  void use_workload(int qps, int total_query);
-
-  // Prepare for inference benchmark, this will
-  // - Load all operators
-  // - Register all memories
-  void prepare();
-
-  // A blocking call for profiling.
-  void infer();
-
-private:
-  shared_ptr<vector<LogicalOperator>> generate_query(string model_name,
-                                                     int replica_id = 0);
-  void wait_for_queues();
+  // shared_ptr<vector<LogicalOperator>> generate_query(string model_name,
+  //                                                    int replica_id = 0);
+  // void wait_for_queues();
 
   map<string, ModelProto> model_protos;
 
-  TensorProto input;
-  string input_tensor_name;
+  map<string, TensorProto> input_protos;
+  map<string, string> input_tensor_names;
 
-  bool fijit_prepared = false;
+  cudaStream_t default_stream;
+  map<string, cudaStream_t> model_streams;
+
+  map<string, shared_ptr<vector<LogicalOperator>>> model_instantiated;
+
+  vector<string> op_queue_order;
+  vector<vector<shared_ptr<PhysicalOperator>>> op_queue;
+
+  // bool fijit_prepared = false;
 
   shared_ptr<StaticMemoryManager> smm = make_shared<StaticMemoryManager>();
   shared_ptr<DynamicMemoryManager> dmm = make_shared<DynamicMemoryManager>();
@@ -75,20 +83,22 @@ private:
   cudnnHandle_t handle;
   cublasHandle_t cublasHandle;
 
-  thread scheduler_thread;
-  thread executor_thread;
+  // thread scheduler_thread;
+  // thread executor_thread;
 
-  int qps;
+  // int qps;
   int total_query;
 
+  EventRegistrar &event_registra = EventRegistrar::get_global_event_registrar();
+
   // shared_ptr<vector<LogicalOperator>> queries;
-  map<string, shared_ptr<vector<LogicalOperator>>> model_to_queries;
+  // map<string, shared_ptr<vector<LogicalOperator>>> model_to_queries;
 
-  shared_ptr<Scheduler> scheduler;
-  shared_ptr<Executor> executor;
+  // shared_ptr<Scheduler> scheduler;
+  // shared_ptr<Executor> executor;
 
-  map<string, SchedQueue> sched_queues;
-  map<string, ExecQueue> exec_queues;
+  // map<string, SchedQueue> sched_queues;
+  // map<string, ExecQueue> exec_queues;
 };
 
 #endif // FIJIT_SYS_FIJIT_H
