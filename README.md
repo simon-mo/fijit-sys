@@ -1,3 +1,13 @@
+## Fijit
+Fijit is a resarch prototype built in 2019 that consumes *ONNX protobuf* and execute the compute node while letting you configure:
+- How operators are placed in different CUDA streams
+- The exact implementation for the operator
+	- cuDNN
+	- cuBLAS
+	- TVM generated CUDA kernel
+
+It can current runs a ResNet 50!
+
 ## Install
 
 System Requirements:
